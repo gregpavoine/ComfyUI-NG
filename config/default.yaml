@@ -1,0 +1,50 @@
+server:
+  host: 127.0.0.1
+  port: 8188
+  workers: 2
+
+runtime:
+  python: ">=3.14"
+  multiprocessing_start: forkserver
+
+scheduler:
+  default_profile: balanced
+  interactive_priority: 80
+  max_queued_jobs: 100
+
+cpu:
+  reserve_cores: 2
+  compute_workers: auto
+  io_workers: 4
+
+memory:
+  reserve_system_gb: 4
+  max_pinned_gb: 8
+
+gpu:
+  devices: auto
+  reserve_vram_mb: 768
+  heavy_workers_per_gpu: 1
+  compile: auto
+  attention_backend: auto
+
+plugins:
+  isolation: true
+  lazy_loading: true
+  default_idle_timeout: 120
+  allow_legacy_bridge: false
+
+providers:
+  huggingface:
+    enabled: true
+    offline: false
+  civitai_red:
+    enabled: false
+
+auth:
+  mode: NONE_LOCALHOST
+
+database:
+  busy_timeout_ms: 5000
+
+storage: {}
