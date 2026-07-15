@@ -1,0 +1,51 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-sampling"
+name = "Core Sampling Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_sampling.runtime:create_runtime"
+isolation = "gpu_model_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_on_memory_pressure"
+idle_timeout_seconds = 120
+
+[resources]
+gpu = "required"
+estimated_ram_mb = 256
+estimated_vram_mb = 1024
+network = false
+
+[[nodes]]
+id = "ng.sample.run"
+display_name = "NG Sampler"
+category = "sampling"
+input_schema = "../../schemas/nodes/sample_run.input.json"
+output_schema = "../../schemas/nodes/sample_run.output.json"
+
+[[nodes]]
+id = "ng.sample.advanced"
+display_name = "NG Sampler Advanced"
+category = "sampling"
+input_schema = "../../schemas/nodes/sample_advanced.input.json"
+output_schema = "../../schemas/nodes/sample_advanced.output.json"
+
+[[nodes]]
+id = "ng.sample.noise"
+display_name = "NG Noise"
+category = "sampling"
+input_schema = "../../schemas/nodes/sample_noise.input.json"
+output_schema = "../../schemas/nodes/sample_noise.output.json"
+
+[[nodes]]
+id = "ng.sample.scheduler"
+display_name = "NG Scheduler"
+category = "sampling"
+input_schema = "../../schemas/nodes/sample_scheduler.input.json"
+output_schema = "../../schemas/nodes/sample_scheduler.output.json"

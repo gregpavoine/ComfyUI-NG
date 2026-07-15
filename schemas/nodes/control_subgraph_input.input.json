@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.subgraph_input/input/1",
+  "title": "NG Subgraph Input inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type_ref": {
+      "type": "string",
+      "pattern": "^NG_[A-Z0-9_]+@[1-9][0-9]*$"
+    }
+  },
+  "required": [
+    "name",
+    "type_ref"
+  ]
+}

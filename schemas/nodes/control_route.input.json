@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.route/input/1",
+  "title": "NG Route inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "value": {},
+    "route": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "value",
+    "route"
+  ]
+}

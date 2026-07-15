@@ -17,6 +17,7 @@ PROJECT_ROOT = Path(__file__).parents[2]
 EXPECTED_CORE_DISTRIBUTIONS = {
     "aiosqlite",
     "fastapi",
+    "msgspec",
     "pydantic",
     "pydantic-settings",
     "pyyaml",
@@ -135,6 +136,10 @@ def test_importing_core_does_not_import_heavy_or_provider_modules() -> None:
 import json
 import sys
 import comfyng
+import comfyng.core
+import comfyng.graph
+import comfyng.models
+import comfyng.plugins
 
 forbidden = {FORBIDDEN_MODULES!r}
 loaded = sorted(

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.vae.load/output/1",
+  "title": "NG VAE Loader outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "vae": {
+      "type": "string",
+      "x-comfyng-type": "NG_VAE@1"
+    }
+  }
+}

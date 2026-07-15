@@ -1,0 +1,58 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-latents"
+name = "Core Latent Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_latents.runtime:create_runtime"
+isolation = "gpu_model_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_after_idle"
+idle_timeout_seconds = 120
+
+[resources]
+gpu = "optional"
+estimated_ram_mb = 128
+estimated_vram_mb = 256
+network = false
+
+[[nodes]]
+id = "ng.latent.empty"
+display_name = "NG Empty Latent"
+category = "latents"
+input_schema = "../../schemas/nodes/latent_empty.input.json"
+output_schema = "../../schemas/nodes/latent_empty.output.json"
+
+[[nodes]]
+id = "ng.latent.image_to_latent"
+display_name = "NG Image To Latent"
+category = "latents"
+input_schema = "../../schemas/nodes/latent_image_to_latent.input.json"
+output_schema = "../../schemas/nodes/latent_image_to_latent.output.json"
+
+[[nodes]]
+id = "ng.latent.latent_to_image"
+display_name = "NG Latent To Image"
+category = "latents"
+input_schema = "../../schemas/nodes/latent_latent_to_image.input.json"
+output_schema = "../../schemas/nodes/latent_latent_to_image.output.json"
+
+[[nodes]]
+id = "ng.latent.resize"
+display_name = "NG Latent Resize"
+category = "latents"
+input_schema = "../../schemas/nodes/latent_resize.input.json"
+output_schema = "../../schemas/nodes/latent_resize.output.json"
+
+[[nodes]]
+id = "ng.latent.blend"
+display_name = "NG Latent Blend"
+category = "latents"
+input_schema = "../../schemas/nodes/latent_blend.input.json"
+output_schema = "../../schemas/nodes/latent_blend.output.json"

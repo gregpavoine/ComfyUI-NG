@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.collect/input/1",
+  "title": "NG Collect inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "item": {},
+    "index": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "item",
+    "index"
+  ]
+}

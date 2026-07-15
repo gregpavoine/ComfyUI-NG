@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.latent.latent_to_image/input/1",
+  "title": "NG Latent To Image inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "latent": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    },
+    "vae": {
+      "type": "string",
+      "x-comfyng-type": "NG_VAE@1"
+    }
+  },
+  "required": [
+    "latent",
+    "vae"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.sample.noise/output/1",
+  "title": "NG Noise outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "noise": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    }
+  }
+}

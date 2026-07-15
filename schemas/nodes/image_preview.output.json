@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.image.preview/output/1",
+  "title": "NG Preview Image outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "preview": {
+      "type": "string",
+      "x-comfyng-type": "NG_ARTIFACT@1"
+    }
+  }
+}

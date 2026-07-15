@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.text_encoder.load/output/1",
+  "title": "NG Text Encoder Loader outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "text_encoder": {
+      "type": "string",
+      "x-comfyng-type": "NG_TEXT_ENCODER@1"
+    }
+  }
+}

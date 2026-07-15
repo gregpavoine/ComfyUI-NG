@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.conditioning.prompt_encode/input/1",
+  "title": "NG Prompt Encode inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "text_encoder": {
+      "type": "string",
+      "x-comfyng-type": "NG_TEXT_ENCODER@1"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "negative_prompt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "text_encoder",
+    "prompt"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.system.memory_policy/input/1",
+  "title": "NG Memory Policy inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "profile": {
+      "type": "string",
+      "enum": [
+        "conservative",
+        "balanced",
+        "performance"
+      ]
+    }
+  },
+  "required": [
+    "profile"
+  ]
+}

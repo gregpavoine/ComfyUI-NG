@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.compare/input/1",
+  "title": "NG Compare inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "left": {},
+    "right": {},
+    "operator": {
+      "type": "string",
+      "enum": [
+        "eq",
+        "ne",
+        "lt",
+        "lte",
+        "gt",
+        "gte"
+      ]
+    }
+  },
+  "required": [
+    "left",
+    "right",
+    "operator"
+  ]
+}

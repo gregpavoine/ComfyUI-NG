@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.system.performance_profile/input/1",
+  "title": "NG Performance Profile inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "profile": {
+      "type": "string",
+      "enum": [
+        "latency",
+        "balanced",
+        "throughput"
+      ]
+    }
+  },
+  "required": [
+    "profile"
+  ]
+}

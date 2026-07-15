@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.system.cache_control/input/1",
+  "title": "NG Cache Control inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "inspect",
+        "invalidate",
+        "clean"
+      ]
+    },
+    "namespace": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "action"
+  ]
+}

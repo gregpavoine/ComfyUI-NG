@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.lora.load/input/1",
+  "title": "NG LoRA Loader inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_strength": {
+      "type": "number",
+      "minimum": -2,
+      "maximum": 2
+    },
+    "encoder_strength": {
+      "type": "number",
+      "minimum": -2,
+      "maximum": 2
+    }
+  },
+  "required": [
+    "path"
+  ]
+}

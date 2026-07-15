@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.lora.inspect/input/1",
+  "title": "NG LoRA Inspector inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lora_stack": {
+      "type": "string",
+      "x-comfyng-type": "NG_LORA_STACK@1"
+    }
+  },
+  "required": [
+    "lora_stack"
+  ]
+}

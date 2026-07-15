@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.conditioning.combine/input/1",
+  "title": "NG Conditioning Combine inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "conditioning_a": {
+      "type": "string",
+      "x-comfyng-type": "NG_CONDITIONING@1"
+    },
+    "conditioning_b": {
+      "type": "string",
+      "x-comfyng-type": "NG_CONDITIONING@1"
+    }
+  },
+  "required": [
+    "conditioning_a",
+    "conditioning_b"
+  ]
+}

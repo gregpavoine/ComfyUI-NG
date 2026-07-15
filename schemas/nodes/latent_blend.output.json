@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.latent.blend/output/1",
+  "title": "NG Latent Blend outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "latent": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.model.load/output/1",
+  "title": "NG Model Loader outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model": {
+      "type": "string",
+      "x-comfyng-type": "NG_MODEL@1"
+    },
+    "model_info": {
+      "type": "string",
+      "x-comfyng-type": "NG_MODEL_INFO@1"
+    }
+  }
+}

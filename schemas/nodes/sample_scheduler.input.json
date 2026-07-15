@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.sample.scheduler/input/1",
+  "title": "NG Scheduler inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model": {
+      "type": "string",
+      "x-comfyng-type": "NG_MODEL@1"
+    },
+    "scheduler": {
+      "type": "string",
+      "minLength": 1
+    },
+    "steps": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "model",
+    "scheduler",
+    "steps"
+  ]
+}

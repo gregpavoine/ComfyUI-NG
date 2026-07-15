@@ -1,0 +1,79 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-control"
+name = "Core Control Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_control.runtime:create_runtime"
+isolation = "plugin_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_after_execution"
+idle_timeout_seconds = 0
+
+[resources]
+gpu = "none"
+estimated_ram_mb = 32
+estimated_vram_mb = 0
+network = false
+
+[[nodes]]
+id = "ng.control.switch"
+display_name = "NG Switch"
+category = "control"
+input_schema = "../../schemas/nodes/control_switch.input.json"
+output_schema = "../../schemas/nodes/control_switch.output.json"
+
+[[nodes]]
+id = "ng.control.compare"
+display_name = "NG Compare"
+category = "control"
+input_schema = "../../schemas/nodes/control_compare.input.json"
+output_schema = "../../schemas/nodes/control_compare.output.json"
+
+[[nodes]]
+id = "ng.control.route"
+display_name = "NG Route"
+category = "control"
+input_schema = "../../schemas/nodes/control_route.input.json"
+output_schema = "../../schemas/nodes/control_route.output.json"
+
+[[nodes]]
+id = "ng.control.merge"
+display_name = "NG Merge"
+category = "control"
+input_schema = "../../schemas/nodes/control_merge.input.json"
+output_schema = "../../schemas/nodes/control_merge.output.json"
+
+[[nodes]]
+id = "ng.control.for_each"
+display_name = "NG For Each"
+category = "control"
+input_schema = "../../schemas/nodes/control_for_each.input.json"
+output_schema = "../../schemas/nodes/control_for_each.output.json"
+
+[[nodes]]
+id = "ng.control.collect"
+display_name = "NG Collect"
+category = "control"
+input_schema = "../../schemas/nodes/control_collect.input.json"
+output_schema = "../../schemas/nodes/control_collect.output.json"
+
+[[nodes]]
+id = "ng.control.subgraph_input"
+display_name = "NG Subgraph Input"
+category = "control"
+input_schema = "../../schemas/nodes/control_subgraph_input.input.json"
+output_schema = "../../schemas/nodes/control_subgraph_input.output.json"
+
+[[nodes]]
+id = "ng.control.subgraph_output"
+display_name = "NG Subgraph Output"
+category = "control"
+input_schema = "../../schemas/nodes/control_subgraph_output.input.json"
+output_schema = "../../schemas/nodes/control_subgraph_output.output.json"

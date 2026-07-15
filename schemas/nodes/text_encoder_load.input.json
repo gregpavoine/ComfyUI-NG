@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.text_encoder.load/input/1",
+  "title": "NG Text Encoder Loader inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layout": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "path"
+  ]
+}

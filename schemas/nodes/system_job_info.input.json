@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.system.job_info/input/1",
+  "title": "NG Job Info inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "job": {
+      "type": "string",
+      "x-comfyng-type": "NG_JOB_REFERENCE@1"
+    }
+  },
+  "required": [
+    "job"
+  ]
+}

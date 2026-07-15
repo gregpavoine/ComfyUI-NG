@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.system.memory_policy/output/1",
+  "title": "NG Memory Policy outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "memory_policy": {
+      "type": "object"
+    }
+  }
+}

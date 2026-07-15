@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.for_each/input/1",
+  "title": "NG For Each inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {}
+    }
+  },
+  "required": [
+    "items"
+  ]
+}

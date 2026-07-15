@@ -1,0 +1,65 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-images"
+name = "Core Image Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_images.runtime:create_runtime"
+isolation = "io_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_after_idle"
+idle_timeout_seconds = 60
+
+[resources]
+gpu = "none"
+estimated_ram_mb = 128
+estimated_vram_mb = 0
+network = false
+
+[[nodes]]
+id = "ng.image.load"
+display_name = "NG Load Image"
+category = "images"
+input_schema = "../../schemas/nodes/image_load.input.json"
+output_schema = "../../schemas/nodes/image_load.output.json"
+
+[[nodes]]
+id = "ng.image.save"
+display_name = "NG Save Image"
+category = "images"
+input_schema = "../../schemas/nodes/image_save.input.json"
+output_schema = "../../schemas/nodes/image_save.output.json"
+
+[[nodes]]
+id = "ng.image.preview"
+display_name = "NG Preview Image"
+category = "images"
+input_schema = "../../schemas/nodes/image_preview.input.json"
+output_schema = "../../schemas/nodes/image_preview.output.json"
+
+[[nodes]]
+id = "ng.image.resize"
+display_name = "NG Resize Image"
+category = "images"
+input_schema = "../../schemas/nodes/image_resize.input.json"
+output_schema = "../../schemas/nodes/image_resize.output.json"
+
+[[nodes]]
+id = "ng.image.crop"
+display_name = "NG Crop Image"
+category = "images"
+input_schema = "../../schemas/nodes/image_crop.input.json"
+output_schema = "../../schemas/nodes/image_crop.output.json"
+
+[[nodes]]
+id = "ng.image.metadata"
+display_name = "NG Image Metadata"
+category = "images"
+input_schema = "../../schemas/nodes/image_metadata.input.json"
+output_schema = "../../schemas/nodes/image_metadata.output.json"

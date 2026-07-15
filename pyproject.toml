@@ -13,6 +13,7 @@ license-files = ["LICENSE"]
 dependencies = [
   "aiosqlite>=0.22,<1",
   "fastapi>=0.116,<1",
+  "msgspec>=0.19,<1",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "PyYAML>=6.0.2,<7",
@@ -34,6 +35,8 @@ packages = ["src/comfyng"]
 [tool.hatch.build.targets.wheel.force-include]
 "config/default.yaml" = "comfyng/config/default.yaml"
 "migrations" = "comfyng/database/migrations"
+"runtimes" = "comfyng/catalogue/runtimes"
+"schemas" = "comfyng/catalogue/schemas"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

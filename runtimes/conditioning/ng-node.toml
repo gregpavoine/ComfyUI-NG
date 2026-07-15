@@ -1,0 +1,51 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-conditioning"
+name = "Core Conditioning Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_conditioning.runtime:create_runtime"
+isolation = "gpu_model_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_after_idle"
+idle_timeout_seconds = 120
+
+[resources]
+gpu = "optional"
+estimated_ram_mb = 128
+estimated_vram_mb = 128
+network = false
+
+[[nodes]]
+id = "ng.conditioning.prompt_encode"
+display_name = "NG Prompt Encode"
+category = "conditioning"
+input_schema = "../../schemas/nodes/conditioning_prompt_encode.input.json"
+output_schema = "../../schemas/nodes/conditioning_prompt_encode.output.json"
+
+[[nodes]]
+id = "ng.conditioning.guidance"
+display_name = "NG Guidance"
+category = "conditioning"
+input_schema = "../../schemas/nodes/conditioning_guidance.input.json"
+output_schema = "../../schemas/nodes/conditioning_guidance.output.json"
+
+[[nodes]]
+id = "ng.conditioning.combine"
+display_name = "NG Conditioning Combine"
+category = "conditioning"
+input_schema = "../../schemas/nodes/conditioning_combine.input.json"
+output_schema = "../../schemas/nodes/conditioning_combine.output.json"
+
+[[nodes]]
+id = "ng.conditioning.mask"
+display_name = "NG Conditioning Mask"
+category = "conditioning"
+input_schema = "../../schemas/nodes/conditioning_mask.input.json"
+output_schema = "../../schemas/nodes/conditioning_mask.output.json"

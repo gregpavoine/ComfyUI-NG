@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.conditioning.guidance/input/1",
+  "title": "NG Guidance inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "conditioning": {
+      "type": "string",
+      "x-comfyng-type": "NG_CONDITIONING@1"
+    },
+    "guidance": {
+      "type": "number",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "conditioning",
+    "guidance"
+  ]
+}

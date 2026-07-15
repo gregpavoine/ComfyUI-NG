@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.latent.empty/input/1",
+  "title": "NG Empty Latent inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "width": {
+      "type": "integer",
+      "minimum": 64
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 64
+    },
+    "batch_size": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "channels": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "width",
+    "height"
+  ]
+}

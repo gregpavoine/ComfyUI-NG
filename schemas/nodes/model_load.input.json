@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.model.load/input/1",
+  "title": "NG Model Loader inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "family": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "path"
+  ]
+}

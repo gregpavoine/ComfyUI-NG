@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.sample.advanced/input/1",
+  "title": "NG Sampler Advanced inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model": {
+      "type": "string",
+      "x-comfyng-type": "NG_MODEL@1"
+    },
+    "conditioning": {
+      "type": "string",
+      "x-comfyng-type": "NG_CONDITIONING@1"
+    },
+    "latent": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "steps": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "guidance": {
+      "type": "number",
+      "minimum": 0
+    },
+    "denoise": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "sampler": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scheduler": {
+      "type": "string",
+      "minLength": 1
+    },
+    "performance_profile": {
+      "type": "object"
+    },
+    "cache_profile": {
+      "type": "object"
+    },
+    "preview_profile": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "model",
+    "conditioning",
+    "latent",
+    "seed",
+    "steps",
+    "guidance",
+    "denoise",
+    "sampler",
+    "scheduler"
+  ]
+}

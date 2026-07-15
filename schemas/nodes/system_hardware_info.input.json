@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.system.hardware_info/input/1",
+  "title": "NG Hardware Info inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

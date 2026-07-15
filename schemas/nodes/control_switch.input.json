@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.switch/input/1",
+  "title": "NG Switch inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "condition": {
+      "type": "boolean"
+    },
+    "true_value": {},
+    "false_value": {}
+  },
+  "required": [
+    "condition",
+    "true_value",
+    "false_value"
+  ]
+}

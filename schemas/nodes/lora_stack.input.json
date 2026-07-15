@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.lora.stack/input/1",
+  "title": "NG LoRA Stack inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "base": {
+      "type": "string",
+      "x-comfyng-type": "NG_LORA_STACK@1"
+    },
+    "addition": {
+      "type": "string",
+      "x-comfyng-type": "NG_LORA_STACK@1"
+    }
+  },
+  "required": [
+    "base",
+    "addition"
+  ]
+}

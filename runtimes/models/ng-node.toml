@@ -1,0 +1,58 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-models"
+name = "Core Model Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_models.runtime:create_runtime"
+isolation = "gpu_model_worker"
+load_policy = "keep_warm"
+unload_policy = "unload_on_memory_pressure"
+idle_timeout_seconds = 300
+
+[resources]
+gpu = "optional"
+estimated_ram_mb = 256
+estimated_vram_mb = 512
+network = false
+
+[[nodes]]
+id = "ng.model.load"
+display_name = "NG Model Loader"
+category = "models"
+input_schema = "../../schemas/nodes/model_load.input.json"
+output_schema = "../../schemas/nodes/model_load.output.json"
+
+[[nodes]]
+id = "ng.text_encoder.load"
+display_name = "NG Text Encoder Loader"
+category = "models"
+input_schema = "../../schemas/nodes/text_encoder_load.input.json"
+output_schema = "../../schemas/nodes/text_encoder_load.output.json"
+
+[[nodes]]
+id = "ng.vae.load"
+display_name = "NG VAE Loader"
+category = "models"
+input_schema = "../../schemas/nodes/vae_load.input.json"
+output_schema = "../../schemas/nodes/vae_load.output.json"
+
+[[nodes]]
+id = "ng.model.inspect"
+display_name = "NG Model Inspector"
+category = "models"
+input_schema = "../../schemas/nodes/model_inspect.input.json"
+output_schema = "../../schemas/nodes/model_inspect.output.json"
+
+[[nodes]]
+id = "ng.model.unload"
+display_name = "NG Model Unload"
+category = "models"
+input_schema = "../../schemas/nodes/model_unload.input.json"
+output_schema = "../../schemas/nodes/model_unload.output.json"

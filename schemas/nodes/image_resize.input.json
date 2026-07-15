@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.image.resize/input/1",
+  "title": "NG Resize Image inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "type": "string",
+      "x-comfyng-type": "NG_IMAGE@1"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "nearest",
+        "bilinear",
+        "bicubic",
+        "lanczos"
+      ]
+    }
+  },
+  "required": [
+    "image",
+    "width",
+    "height"
+  ]
+}

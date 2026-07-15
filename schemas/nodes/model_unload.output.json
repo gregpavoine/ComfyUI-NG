@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.model.unload/output/1",
+  "title": "NG Model Unload outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "unloaded": {
+      "type": "boolean"
+    }
+  }
+}

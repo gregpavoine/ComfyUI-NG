@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.lora.stack/output/1",
+  "title": "NG LoRA Stack outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lora_stack": {
+      "type": "string",
+      "x-comfyng-type": "NG_LORA_STACK@1"
+    }
+  }
+}

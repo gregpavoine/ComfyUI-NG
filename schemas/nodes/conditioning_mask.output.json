@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.conditioning.mask/output/1",
+  "title": "NG Conditioning Mask outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "conditioning": {
+      "type": "string",
+      "x-comfyng-type": "NG_CONDITIONING@1"
+    }
+  }
+}

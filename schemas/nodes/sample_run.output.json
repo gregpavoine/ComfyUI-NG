@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.sample.run/output/1",
+  "title": "NG Sampler outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "latent": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    },
+    "sampling_metrics": {
+      "type": "object"
+    },
+    "execution_trace": {
+      "type": "object"
+    }
+  }
+}

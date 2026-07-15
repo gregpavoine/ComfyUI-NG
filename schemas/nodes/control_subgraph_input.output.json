@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.control.subgraph_input/output/1",
+  "title": "NG Subgraph Input outputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "value": {}
+  }
+}

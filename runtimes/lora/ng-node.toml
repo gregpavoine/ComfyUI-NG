@@ -1,0 +1,44 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-lora"
+name = "Core LoRA Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_lora.runtime:create_runtime"
+isolation = "gpu_model_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_after_idle"
+idle_timeout_seconds = 120
+
+[resources]
+gpu = "optional"
+estimated_ram_mb = 128
+estimated_vram_mb = 256
+network = false
+
+[[nodes]]
+id = "ng.lora.load"
+display_name = "NG LoRA Loader"
+category = "lora"
+input_schema = "../../schemas/nodes/lora_load.input.json"
+output_schema = "../../schemas/nodes/lora_load.output.json"
+
+[[nodes]]
+id = "ng.lora.stack"
+display_name = "NG LoRA Stack"
+category = "lora"
+input_schema = "../../schemas/nodes/lora_stack.input.json"
+output_schema = "../../schemas/nodes/lora_stack.output.json"
+
+[[nodes]]
+id = "ng.lora.inspect"
+display_name = "NG LoRA Inspector"
+category = "lora"
+input_schema = "../../schemas/nodes/lora_inspect.input.json"
+output_schema = "../../schemas/nodes/lora_inspect.output.json"

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.latent.blend/input/1",
+  "title": "NG Latent Blend inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "latent_a": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    },
+    "latent_b": {
+      "type": "string",
+      "x-comfyng-type": "NG_LATENT@1"
+    },
+    "ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": [
+    "latent_a",
+    "latent_b",
+    "ratio"
+  ]
+}

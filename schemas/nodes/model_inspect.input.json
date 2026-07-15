@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.comfyng.local/nodes/ng.model.inspect/input/1",
+  "title": "NG Model Inspector inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model": {
+      "type": "string",
+      "x-comfyng-type": "NG_MODEL@1"
+    }
+  },
+  "required": [
+    "model"
+  ]
+}

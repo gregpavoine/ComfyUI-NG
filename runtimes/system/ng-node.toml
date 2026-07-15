@@ -1,0 +1,58 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.core-system"
+name = "Core System Nodes"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_system.runtime:create_runtime"
+isolation = "plugin_worker"
+load_policy = "load_on_execution"
+unload_policy = "unload_after_execution"
+idle_timeout_seconds = 0
+
+[resources]
+gpu = "none"
+estimated_ram_mb = 32
+estimated_vram_mb = 0
+network = false
+
+[[nodes]]
+id = "ng.system.job_info"
+display_name = "NG Job Info"
+category = "system"
+input_schema = "../../schemas/nodes/system_job_info.input.json"
+output_schema = "../../schemas/nodes/system_job_info.output.json"
+
+[[nodes]]
+id = "ng.system.hardware_info"
+display_name = "NG Hardware Info"
+category = "system"
+input_schema = "../../schemas/nodes/system_hardware_info.input.json"
+output_schema = "../../schemas/nodes/system_hardware_info.output.json"
+
+[[nodes]]
+id = "ng.system.memory_policy"
+display_name = "NG Memory Policy"
+category = "system"
+input_schema = "../../schemas/nodes/system_memory_policy.input.json"
+output_schema = "../../schemas/nodes/system_memory_policy.output.json"
+
+[[nodes]]
+id = "ng.system.performance_profile"
+display_name = "NG Performance Profile"
+category = "system"
+input_schema = "../../schemas/nodes/system_performance_profile.input.json"
+output_schema = "../../schemas/nodes/system_performance_profile.output.json"
+
+[[nodes]]
+id = "ng.system.cache_control"
+display_name = "NG Cache Control"
+category = "system"
+input_schema = "../../schemas/nodes/system_cache_control.input.json"
+output_schema = "../../schemas/nodes/system_cache_control.output.json"
