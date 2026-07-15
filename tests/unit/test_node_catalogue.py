@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 
+from jsonschema import Draft202012Validator
 import pytest
 
 from comfyng.core.errors import DuplicateNodeDefinitionError
@@ -132,6 +133,21 @@ def test_official_schemas_declare_every_required_or_optional_port() -> None:
         assert node.output_schema["additionalProperties"] is False, node.id
         assert set(node.output_schema.get("required", ())) == set(output_properties), node.id
         assert all(definition for definition in output_properties.values()), node.id
+
+
+def test_subgraph_input_type_ref_schema_matches_contract_grammar() -> None:
+    node = NodeCatalogue.discover().get("ng.control.subgraph_input", "1.0.0")
+    validator = Draft202012Validator(node.input_schema)
+
+    assert validator.is_valid(
+        {"name": "model_info", "type_ref": "NG_MODEL_INFO@1"}
+    )
+    assert not validator.is_valid(
+        {"name": "model", "type_ref": "NG__MODEL@1"}
+    )
+    assert not validator.is_valid(
+        {"name": "model", "type_ref": "NG_MODEL_@1"}
+    )
 
 
 def test_discovery_never_imports_a_runtime_entrypoint(
