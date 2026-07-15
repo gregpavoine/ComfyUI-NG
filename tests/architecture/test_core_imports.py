@@ -67,6 +67,14 @@ UNAVAILABLE_COMMANDS = (
     (("cache", "clean"), "cache"),
     (("workers", "status"), "workers"),
 )
+NON_MAPPING_YAML_VALUES = (
+    ("null", "null"),
+    ("false", "false"),
+    ("zero", "0"),
+    ("empty-list", "[]"),
+    ("string", '"not-a-mapping"'),
+    ("malformed-list-of-pairs", "[[[path], value]]"),
+)
 
 
 def _console_script() -> Path:
@@ -232,11 +240,38 @@ def test_doctor_python_check_rejects_versions_below_floor() -> None:
     }
 
 
+@pytest.mark.parametrize("section", ("database", "storage"))
+@pytest.mark.parametrize(
+    ("label", "yaml_value"),
+    NON_MAPPING_YAML_VALUES,
+    ids=lambda value: value,
+)
+def test_doctor_structures_non_mapping_section_errors_without_traceback(
+    tmp_path: Path,
+    section: str,
+    label: str,
+    yaml_value: str,
+) -> None:
+    config = tmp_path / f"{section}-{label}.yaml"
+    config.write_text(f"{section}: {yaml_value}\n", encoding="utf-8")
+
+    result = _run_cli("doctor", "--json", "--config", str(config))
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    configuration = json.loads(result.stdout)["checks"]["configuration"]
+    assert configuration["ok"] is False
+    assert configuration["error"]["code"] == "CONFIGURATION_INVALID"
+    assert configuration["error"]["details"][0]["type"] == "config_section_type"
+    assert configuration["error"]["details"][0]["ctx"] == {"section": section}
+
+
 def test_readme_documents_data_root_precedence() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     markers = (
         "$COMFYNG_DATA_ROOT",
         "$COMFYNG_HOME",
+        "an explicit `data_root` in YAML",
         "$XDG_DATA_HOME/comfyui-ng",
         "~/.local/share/comfyui-ng",
     )

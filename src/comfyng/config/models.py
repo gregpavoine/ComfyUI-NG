@@ -13,6 +13,7 @@ from pydantic import (
     PositiveInt,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -103,6 +104,22 @@ def _resolved_path(value: str | Path, *, relative_to: Path) -> Path:
     return path.resolve(strict=False)
 
 
+def _mapping_section(payload: Mapping[str, Any], section: str) -> dict[str, Any]:
+    if section not in payload:
+        return {}
+
+    value = payload[section]
+    if isinstance(value, BaseModel):
+        return value.model_dump()
+    if not isinstance(value, Mapping):
+        raise PydanticCustomError(
+            "config_section_type",
+            "{section} must be a mapping",
+            {"section": section},
+        )
+    return dict(value)
+
+
 class Settings(BaseSettings):
     """Complete immutable configuration for the ComfyUI-NG control plane."""
 
@@ -141,24 +158,14 @@ class Settings(BaseSettings):
         data_root = _resolved_path(payload["data_root"], relative_to=Path.cwd())
         payload["data_root"] = data_root
 
-        database_value = payload.get("database") or {}
-        database = (
-            database_value.model_dump()
-            if isinstance(database_value, BaseModel)
-            else dict(database_value)
-        )
+        database = _mapping_section(payload, "database")
         database["path"] = _resolved_path(
             database.get("path", data_root / "comfyng.db"),
             relative_to=data_root,
         )
         payload["database"] = database
 
-        storage_value = payload.get("storage") or {}
-        storage = (
-            storage_value.model_dump()
-            if isinstance(storage_value, BaseModel)
-            else dict(storage_value)
-        )
+        storage = _mapping_section(payload, "storage")
         storage["root"] = _resolved_path(
             storage.get("root", data_root / "storage"),
             relative_to=data_root,

@@ -46,8 +46,24 @@ def _configuration_check(config: Path | None) -> dict[str, Any]:
 
     try:
         settings = Settings.load(path=config)
-    except (OSError, ValueError, ValidationError, YAMLError) as error:
-        return {"error": str(error), "ok": False}
+    except ValidationError as error:
+        return {
+            "error": {
+                "code": "CONFIGURATION_INVALID",
+                "details": error.errors(include_url=False, include_input=False),
+                "message": "Configuration validation failed.",
+            },
+            "ok": False,
+        }
+    except (OSError, TypeError, ValueError, YAMLError) as error:
+        return {
+            "error": {
+                "code": "CONFIGURATION_INVALID",
+                "details": [],
+                "message": str(error),
+            },
+            "ok": False,
+        }
     return {
         "data_root": str(settings.data_root),
         "database": str(settings.database.path),
@@ -71,7 +87,10 @@ def _render_doctor_text(diagnostic: dict[str, Any]) -> None:
             f"(data_root={configuration_check['data_root']})"
         )
     else:
-        typer.echo(f"configuration: error ({configuration_check['error']})")
+        typer.echo(
+            "configuration: error "
+            f"({configuration_check['error']['message']})"
+        )
 
 
 app = typer.Typer(

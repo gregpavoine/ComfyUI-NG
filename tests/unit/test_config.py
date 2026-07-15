@@ -192,3 +192,36 @@ def test_settings_classmethod_uses_the_public_loader(tmp_path: Path) -> None:
 
     assert settings.server.port == 8188
     assert settings.data_root == tmp_path.resolve()
+
+
+@pytest.mark.parametrize("section", ("database", "storage"))
+@pytest.mark.parametrize(
+    ("label", "yaml_value"),
+    (
+        ("null", "null"),
+        ("false", "false"),
+        ("zero", "0"),
+        ("empty-list", "[]"),
+        ("string", '"not-a-mapping"'),
+        ("malformed-list-of-pairs", "[[[path], value]]"),
+    ),
+    ids=lambda value: value,
+)
+def test_database_and_storage_sections_require_mappings(
+    tmp_path: Path,
+    section: str,
+    label: str,
+    yaml_value: str,
+) -> None:
+    from pydantic import ValidationError
+
+    config = tmp_path / f"{section}-{label}.yaml"
+    config.write_text(f"{section}: {yaml_value}\n", encoding="utf-8")
+
+    with pytest.raises(ValidationError) as caught:
+        load_settings(config, env={"COMFYNG_HOME": str(tmp_path / "data")})
+
+    error = caught.value.errors(include_url=False, include_input=False)[0]
+    assert error["type"] == "config_section_type"
+    assert error["msg"] == f"{section} must be a mapping"
+    assert error["ctx"] == {"section": section}
