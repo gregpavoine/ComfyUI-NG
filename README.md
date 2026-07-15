@@ -31,9 +31,10 @@ precedence and use a double underscore for nesting, for example
 `COMFYNG_SERVER__PORT=9000`. YAML values may reference required environment
 variables as `${NAME}`.
 
-Data defaults to `$COMFYNG_HOME`, then `$XDG_DATA_HOME/comfyui-ng`, then
-`~/.local/share/comfyui-ng`. Database and storage paths are confined below
-that root.
+The data root resolves in this precedence order: `$COMFYNG_DATA_ROOT`, then
+`$COMFYNG_HOME`, then an explicit `data_root` in YAML, then
+`$XDG_DATA_HOME/comfyui-ng`, and finally `~/.local/share/comfyui-ng`. Database
+and storage paths are confined below that root.
 
 ## Verification
 

@@ -1,21 +1,99 @@
 from __future__ import annotations
 
+from importlib.metadata import distribution
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tomllib
 
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).parents[2]
+EXPECTED_CORE_DISTRIBUTIONS = {
+    "fastapi",
+    "pydantic",
+    "pydantic-settings",
+    "pyyaml",
+    "typer",
+}
 FORBIDDEN_DISTRIBUTIONS = {
     "civitai",
+    "cuda",
+    "cupy",
     "diffusers",
+    "flash-attn",
     "huggingface-hub",
+    "nvidia",
+    "pycuda",
+    "sageattention",
     "torch",
     "transformers",
+    "triton",
+    "xformers",
 }
-FORBIDDEN_MODULES = ("civitai", "diffusers", "huggingface_hub", "torch", "transformers")
+FORBIDDEN_MODULES = (
+    "civitai",
+    "cuda",
+    "cupy",
+    "diffusers",
+    "flash_attn",
+    "huggingface_hub",
+    "nvidia",
+    "pycuda",
+    "sageattention",
+    "torch",
+    "transformers",
+    "triton",
+    "xformers",
+)
+UNAVAILABLE_COMMANDS = (
+    (("serve",), "api"),
+    (("benchmark",), "benchmark"),
+    (("models", "list"), "models"),
+    (("models", "inspect"), "models"),
+    (("models", "import"), "models"),
+    (("models", "download"), "providers"),
+    (("plugins", "list"), "plugins"),
+    (("plugins", "install"), "plugins"),
+    (("plugins", "disable"), "plugins"),
+    (("jobs", "list"), "jobs"),
+    (("jobs", "cancel"), "jobs"),
+    (("cache", "inspect"), "cache"),
+    (("cache", "clean"), "cache"),
+    (("workers", "status"), "workers"),
+)
+
+
+def _console_script() -> Path:
+    installed_distribution = distribution("comfyui-ng")
+    console_entries = [
+        entry
+        for entry in installed_distribution.entry_points
+        if entry.group == "console_scripts" and entry.name == "comfyng"
+    ]
+    assert [(entry.name, entry.value) for entry in console_entries] == [
+        ("comfyng", "comfyng.cli.main:main")
+    ]
+    assert console_entries[0].load().__name__ == "main"
+
+    script = Path(sys.executable).with_name("comfyng")
+    assert script.is_file()
+    return script
+
+
+def _run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [_console_script(), *arguments],
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_python_floor_and_reproducible_version_are_declared() -> None:
@@ -25,18 +103,25 @@ def test_python_floor_and_reproducible_version_are_declared() -> None:
     assert (PROJECT_ROOT / ".python-version").read_text(encoding="utf-8").strip() == "3.14.6"
 
 
-def test_core_dependencies_exclude_ml_and_provider_libraries() -> None:
+def test_core_dependency_metadata_is_exact_and_excludes_heavy_libraries() -> None:
     pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    dependencies = {
-        dependency.split("[", 1)[0].split("<", 1)[0].split(">", 1)[0].split("=", 1)[0].lower()
-        for dependency in pyproject["project"]["dependencies"]
+    declared = {
+        canonicalize_name(Requirement(value).name)
+        for value in pyproject["project"]["dependencies"]
+    }
+    installed = {
+        canonicalize_name(requirement.name)
+        for value in distribution("comfyui-ng").requires or []
+        if "extra" not in str((requirement := Requirement(value)).marker)
     }
 
-    assert {"fastapi", "pydantic", "pydantic-settings", "pyyaml", "typer"} <= dependencies
-    assert dependencies.isdisjoint(FORBIDDEN_DISTRIBUTIONS)
+    assert declared == EXPECTED_CORE_DISTRIBUTIONS
+    assert installed == EXPECTED_CORE_DISTRIBUTIONS
+    assert declared & FORBIDDEN_DISTRIBUTIONS == set()
+    assert installed & FORBIDDEN_DISTRIBUTIONS == set()
 
 
-def test_importing_core_does_not_import_ml_or_provider_modules() -> None:
+def test_importing_core_does_not_import_heavy_or_provider_modules() -> None:
     script = f"""
 import json
 import sys
@@ -62,21 +147,15 @@ print(json.dumps(loaded))
     assert json.loads(result.stdout) == []
 
 
-def test_cli_help_lists_every_required_command_group() -> None:
-    result = subprocess.run(
-        [sys.executable, "-m", "comfyng.cli.main", "--help"],
-        cwd=PROJECT_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+def test_installed_console_entry_point_lists_every_required_command_group() -> None:
+    result = _run_cli("--help")
 
     assert result.returncode == 0, result.stderr
     for command in ("serve", "doctor", "benchmark", "models", "plugins", "jobs", "cache", "workers"):
-        assert command in result.stdout
+        assert re.search(rf"\b{re.escape(command)}\b", result.stdout)
 
 
-def test_cli_help_lists_every_required_subcommand() -> None:
+def test_installed_console_entry_point_lists_every_required_subcommand() -> None:
     expected = {
         "models": ("list", "inspect", "import", "download"),
         "plugins": ("list", "install", "disable"),
@@ -86,13 +165,81 @@ def test_cli_help_lists_every_required_subcommand() -> None:
     }
 
     for group, commands in expected.items():
-        result = subprocess.run(
-            [sys.executable, "-m", "comfyng.cli.main", group, "--help"],
-            cwd=PROJECT_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        result = _run_cli(group, "--help")
         assert result.returncode == 0, result.stderr
         for command in commands:
-            assert command in result.stdout
+            assert re.search(rf"\b{re.escape(command)}\b", result.stdout)
+
+
+@pytest.mark.parametrize(("arguments", "service"), UNAVAILABLE_COMMANDS)
+def test_unwired_commands_report_structured_service_unavailability(
+    arguments: tuple[str, ...],
+    service: str,
+) -> None:
+    result = _run_cli(*arguments)
+
+    assert result.returncode == 69
+    assert result.stdout == ""
+    assert json.loads(result.stderr) == {
+        "error": {
+            "code": "SERVICE_UNAVAILABLE",
+            "message": "Required service is not available in this installation.",
+            "service": service,
+        }
+    }
+
+
+def test_doctor_json_reports_python_and_configuration_health() -> None:
+    result = _run_cli("doctor", "--json")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    diagnostic = json.loads(result.stdout)
+    assert diagnostic["status"] == "ok"
+    assert diagnostic["checks"]["python"]["ok"] is True
+    assert diagnostic["checks"]["python"]["required"] == ">=3.14"
+    assert diagnostic["checks"]["configuration"]["ok"] is True
+
+
+def test_doctor_text_reports_healthy_status() -> None:
+    result = _run_cli("doctor")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[0] == "status: ok"
+    assert "python: ok" in result.stdout
+    assert "configuration: ok" in result.stdout
+
+
+def test_doctor_returns_one_for_invalid_configuration(tmp_path: Path) -> None:
+    config = tmp_path / "invalid.yaml"
+    config.write_text("server:\n  port: 0\n", encoding="utf-8")
+
+    result = _run_cli("doctor", "--json", "--config", str(config))
+
+    assert result.returncode == 1
+    diagnostic = json.loads(result.stdout)
+    assert diagnostic["status"] == "error"
+    assert diagnostic["checks"]["configuration"]["ok"] is False
+
+
+def test_doctor_python_check_rejects_versions_below_floor() -> None:
+    from comfyng.cli.main import _python_check
+
+    assert _python_check((3, 13, 9)) == {
+        "ok": False,
+        "required": ">=3.14",
+        "version": "3.13.9",
+    }
+
+
+def test_readme_documents_data_root_precedence() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    markers = (
+        "$COMFYNG_DATA_ROOT",
+        "$COMFYNG_HOME",
+        "$XDG_DATA_HOME/comfyui-ng",
+        "~/.local/share/comfyui-ng",
+    )
+
+    positions = [readme.index(marker) for marker in markers]
+    assert positions == sorted(positions)
