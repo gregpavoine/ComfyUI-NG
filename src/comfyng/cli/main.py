@@ -50,7 +50,9 @@ def _configuration_check(config: Path | None) -> dict[str, Any]:
         return {
             "error": {
                 "code": "CONFIGURATION_INVALID",
-                "details": error.errors(include_url=False, include_input=False),
+                "details": json.loads(
+                    error.json(include_url=False, include_input=False)
+                ),
                 "message": "Configuration validation failed.",
             },
             "ok": False,

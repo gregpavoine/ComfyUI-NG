@@ -266,6 +266,75 @@ def test_doctor_structures_non_mapping_section_errors_without_traceback(
     assert configuration["error"]["details"][0]["ctx"] == {"section": section}
 
 
+@pytest.mark.parametrize(
+    ("section", "field", "outside_name"),
+    (
+        ("database", "path", "outside.db"),
+        ("storage", "root", "outside-storage"),
+    ),
+)
+def test_doctor_json_structures_out_of_root_path_errors_without_traceback(
+    tmp_path: Path,
+    section: str,
+    field: str,
+    outside_name: str,
+) -> None:
+    data_root = tmp_path / "data"
+    config = tmp_path / f"outside-{section}.yaml"
+    config.write_text(
+        "\n".join(
+            (
+                f"data_root: {json.dumps(str(data_root))}",
+                f"{section}:",
+                f"  {field}: {json.dumps(str(tmp_path / outside_name))}",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run_cli("doctor", "--json", "--config", str(config))
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    diagnostic = json.loads(result.stdout)
+    assert diagnostic["status"] == "error"
+    configuration = diagnostic["checks"]["configuration"]
+    assert configuration["ok"] is False
+    assert configuration["error"]["code"] == "CONFIGURATION_INVALID"
+    assert configuration["error"]["details"][0]["type"] == "value_error"
+    assert configuration["error"]["details"][0]["ctx"] == {
+        "error": f"{section}.{field} must remain under data_root"
+    }
+    assert "Traceback" not in result.stdout
+
+
+def test_doctor_text_preserves_out_of_root_configuration_error(
+    tmp_path: Path,
+) -> None:
+    data_root = tmp_path / "data"
+    config = tmp_path / "outside-database.yaml"
+    config.write_text(
+        "\n".join(
+            (
+                f"data_root: {json.dumps(str(data_root))}",
+                "database:",
+                f"  path: {json.dumps(str(tmp_path / 'outside.db'))}",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run_cli("doctor", "--config", str(config))
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert result.stdout.splitlines()[0] == "status: error"
+    assert "configuration: error (Configuration validation failed.)" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
 def test_readme_documents_data_root_precedence() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     markers = (
