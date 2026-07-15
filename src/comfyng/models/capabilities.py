@@ -7,11 +7,15 @@ from uuid import UUID
 
 from comfyng.core.contracts import Contract, register_contract
 from comfyng.core.ids import validate_sha256
-from comfyng.core.json_values import validate_json_value
+from comfyng.core.json_values import (
+    freeze_json_value,
+    validate_safe_unicode_string,
+)
 
 
 def _non_empty(value: object, *, field: str) -> str:
-    if not isinstance(value, str) or not value.strip():
+    value = validate_safe_unicode_string(value, field=field)
+    if not value.strip():
         raise ValueError(f"{field} must be a non-empty string")
     return value
 
@@ -26,8 +30,9 @@ def _unique_non_empty(
         raise ValueError(
             f"{field} must be a non-empty {collection_type.__name__}"
         )
-    if any(not isinstance(item, str) or not item for item in values):
-        raise ValueError(f"{field} must contain non-empty strings")
+    for item in values:
+        if not validate_safe_unicode_string(item, field=field):
+            raise ValueError(f"{field} must contain non-empty strings")
     if len(values) != len(set(values)):
         raise ValueError(f"{field} must not contain duplicates")
 
@@ -113,13 +118,19 @@ class ModelHandle(Contract):
         _non_empty(self.architecture, field="architecture")
         if not isinstance(self.local_path, Path) or not self.local_path.is_absolute():
             raise ValueError("local_path must be absolute")
+        validate_safe_unicode_string(str(self.local_path), field="local_path")
         validate_sha256(self.sha256)
         if type(self.size_bytes) is not int or self.size_bytes < 0:
             raise ValueError("size_bytes must be non-negative")
-        if type(self.metadata) is not dict:
+        if not isinstance(self.metadata, Mapping):
             raise ValueError("metadata must be a JSON object")
-        validate_json_value(self.metadata, path="$.metadata")
+        object.__setattr__(
+            self,
+            "metadata",
+            freeze_json_value(self.metadata, path="$.metadata"),
+        )
         for field in ("source_provider", "source_model_id", "source_revision"):
             value = getattr(self, field)
-            if value is not None and (not isinstance(value, str) or not value):
-                raise ValueError(f"{field} must be null or a non-empty string")
+            if value is not None:
+                if not validate_safe_unicode_string(value, field=field):
+                    raise ValueError(f"{field} must be null or a non-empty string")

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
 from comfyng.core.enums import LoadPolicy, UnloadPolicy
 from comfyng.core.errors import ManifestValidationError, PathContainmentError
-from comfyng.plugins.manifest import PluginManifest
+from comfyng.plugins.manifest import PackageMetadata, PluginManifest
 
 
 SCHEMA = {
@@ -90,6 +91,80 @@ def test_manifest_loads_schemas_and_round_trips_as_a_frozen_contract(
     assert PluginManifest.from_json(manifest.to_json()) == manifest
     with pytest.raises(AttributeError):
         manifest.schema_version = 2  # type: ignore[misc]
+
+
+def test_manifest_direct_construction_canonicalizes_mutable_metadata(
+    tmp_path: Path,
+) -> None:
+    loaded = PluginManifest.load(_write_manifest(tmp_path), root=tmp_path)
+    permission_source = {"network": True, "filesystem": False}
+    dependency_source = ["org.comfyng.runtime", "org.comfyng.models"]
+
+    manifest = PluginManifest(
+        schema_version=loaded.schema_version,
+        package=loaded.package,
+        runtime=loaded.runtime,
+        resources=loaded.resources,
+        nodes=loaded.nodes,
+        source_path=loaded.source_path,
+        permissions=MappingProxyType(permission_source),
+        dependencies=dependency_source,  # type: ignore[arg-type]
+        signature=None,
+    )
+    permission_source["network"] = False
+    dependency_source.append("org.comfyng.late-mutation")
+
+    assert type(manifest.permissions).__name__ == "FrozenDict"
+    assert manifest.permissions == {"network": True, "filesystem": False}
+    assert manifest.dependencies == (
+        "org.comfyng.runtime",
+        "org.comfyng.models",
+    )
+    with pytest.raises(TypeError, match="immutable"):
+        manifest.permissions["network"] = False  # type: ignore[index]
+    assert PluginManifest.from_json(manifest.to_json()) == manifest
+
+
+@pytest.mark.parametrize(
+    ("permissions", "dependencies"),
+    (
+        ({"network": {"nested": True}}, ()),
+        ({object(): True}, ()),
+        ({}, (object(),)),
+        ({}, (chr(0xD800),)),
+        ({chr(0xD800): True}, ()),
+    ),
+)
+def test_manifest_direct_construction_rejects_unsupported_metadata(
+    tmp_path: Path,
+    permissions: object,
+    dependencies: object,
+) -> None:
+    loaded = PluginManifest.load(_write_manifest(tmp_path), root=tmp_path)
+
+    with pytest.raises(ValueError):
+        PluginManifest(
+            schema_version=loaded.schema_version,
+            package=loaded.package,
+            runtime=loaded.runtime,
+            resources=loaded.resources,
+            nodes=loaded.nodes,
+            source_path=loaded.source_path,
+            permissions=permissions,  # type: ignore[arg-type]
+            dependencies=dependencies,  # type: ignore[arg-type]
+            signature=None,
+        )
+
+
+def test_plugin_package_rejects_unsafe_unicode_strings() -> None:
+    with pytest.raises(ValueError, match="Unicode"):
+        PackageMetadata(
+            id="org.comfyng.test",
+            name=chr(0xD800),
+            version="1.0.0",
+            publisher="ComfyUI-NG",
+            license="GPL-3.0-or-later",
+        )
 
 
 def test_runtime_policy_literals_match_the_normative_policy_list() -> None:
@@ -193,6 +268,65 @@ def test_manifest_validates_the_full_draft_2020_12_metaschema(tmp_path: Path) ->
     )
 
     with pytest.raises(ManifestValidationError, match="Draft 2020-12"):
+        PluginManifest.load(manifest_path, root=tmp_path)
+
+
+def test_manifest_accepts_declared_optional_schema_properties(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    _write_schema(
+        tmp_path / "schemas/input.json",
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string"},
+                "seed": {"type": "integer"},
+            },
+            "required": ["prompt"],
+            "x-comfyng-optional": ["seed"],
+        },
+    )
+
+    manifest = PluginManifest.load(manifest_path, root=tmp_path)
+
+    assert manifest.nodes[0].input_schema["x-comfyng-optional"] == ("seed",)
+
+
+@pytest.mark.parametrize(
+    "optional",
+    (
+        "seed",
+        [1],
+        ["seed", "seed"],
+        ["missing"],
+        ["prompt"],
+        [chr(0xD800)],
+    ),
+    ids=("not-array", "not-string", "duplicate", "unknown", "required", "unicode"),
+)
+def test_manifest_rejects_invalid_optional_schema_properties(
+    tmp_path: Path,
+    optional: object,
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    properties = {
+        "prompt": {"type": "string"},
+        "seed": {"type": "integer"},
+    }
+    if optional == [chr(0xD800)]:
+        properties[chr(0xD800)] = {"type": "string"}
+    _write_schema(
+        tmp_path / "schemas/input.json",
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": properties,
+            "required": ["prompt"],
+            "x-comfyng-optional": optional,
+        },
+    )
+
+    with pytest.raises(ManifestValidationError, match="x-comfyng-optional"):
         PluginManifest.load(manifest_path, root=tmp_path)
 
 

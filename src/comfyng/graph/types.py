@@ -18,7 +18,11 @@ from comfyng.core.ids import (
     validate_semver,
     validate_type_name,
 )
-from comfyng.core.json_values import validate_json_value
+from comfyng.core.json_values import (
+    FrozenDict,
+    freeze_json_value,
+    validate_safe_unicode_string,
+)
 
 
 @register_contract
@@ -58,9 +62,13 @@ class PortTypeDefinition(Contract):
     def __post_init__(self) -> None:
         if not isinstance(self.ref, TypeRef):
             raise ValueError("ref must be a TypeRef")
-        if type(self.schema) is not dict:
+        if not isinstance(self.schema, Mapping):
             raise ValueError("schema must be a JSON object")
-        validate_json_value(self.schema, path="$.schema")
+        object.__setattr__(
+            self,
+            "schema",
+            freeze_json_value(self.schema, path="$.schema"),
+        )
         if not isinstance(self.serialization_strategy, SerializationStrategy):
             raise ValueError(
                 "serialization_strategy must be a SerializationStrategy"
@@ -124,7 +132,7 @@ class TensorHandle(Contract):
             raise ValueError("id must be a UUID")
         for field in ("storage", "dtype", "device", "owner_worker"):
             value = getattr(self, field)
-            if not isinstance(value, str) or not value:
+            if not validate_safe_unicode_string(value, field=field):
                 raise ValueError(f"{field} must be a non-empty string")
         if not isinstance(self.shape, tuple) or not self.shape:
             raise ValueError("shape must be a non-empty tuple")
@@ -151,11 +159,12 @@ class NodeInstance(Contract):
         validate_semver(self.type_version, field="type_version")
         for field in ("inputs", "metadata"):
             value = getattr(self, field)
-            if type(value) is not dict:
+            if not isinstance(value, Mapping):
                 raise ValueError(f"{field} must be a JSON object")
-            validate_json_value(value, path=f"$.{field}")
+            frozen = freeze_json_value(value, path=f"$.{field}")
+            object.__setattr__(self, field, frozen)
             if field == "inputs":
-                for key in value:
+                for key in frozen:  # type: ignore[union-attr]
                     validate_port_name(key, field="input name")
 
 
@@ -240,14 +249,17 @@ class Graph(Contract):
             ("outputs", OutputBinding),
         ):
             value = getattr(self, field)
-            if type(value) is not dict:
+            if not isinstance(value, Mapping):
                 raise ValueError(f"{field} must be a JSON object")
+            frozen: dict[str, InputBinding | OutputBinding] = {}
             for key, binding in value.items():
                 validate_port_name(key, field=f"graph {field} name")
                 if not isinstance(binding, binding_type):
                     raise ValueError(
                         f"graph {field} values must be {binding_type.__name__} values"
                     )
+                frozen[key] = binding
+            object.__setattr__(self, field, FrozenDict(frozen))
 
 
 def _default_types() -> tuple[PortTypeDefinition, ...]:

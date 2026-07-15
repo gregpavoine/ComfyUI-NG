@@ -24,7 +24,11 @@ from comfyng.core.ids import (
     validate_package_id,
     validate_semver,
 )
-from comfyng.core.json_values import validate_json_value
+from comfyng.core.json_values import (
+    FrozenDict,
+    freeze_json_value,
+    validate_safe_unicode_string,
+)
 from comfyng.graph.types import DEFAULT_TYPE_REGISTRY, TypeRef
 
 
@@ -32,7 +36,11 @@ JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 
 def _string(value: object, *, field: str) -> str:
-    if not isinstance(value, str) or not value.strip():
+    try:
+        value = validate_safe_unicode_string(value, field=field)
+    except ValueError as exc:
+        raise ManifestValidationError(str(exc)) from exc
+    if not value.strip():
         raise ManifestValidationError(f"{field} must be a non-empty string")
     return value
 
@@ -136,6 +144,39 @@ def load_json_schema(path: Path) -> dict[str, Any]:
         raise ManifestValidationError(
             f"schema {path}.required references unknown properties: "
             f"{', '.join(sorted(missing))}"
+        )
+    optional_properties = schema.get("x-comfyng-optional", [])
+    if type(optional_properties) is not list:
+        raise ManifestValidationError(
+            f"schema {path}.x-comfyng-optional must be a string array"
+        )
+    for name in optional_properties:
+        if type(name) is not str:
+            raise ManifestValidationError(
+                f"schema {path}.x-comfyng-optional must be a string array"
+            )
+        try:
+            validate_safe_unicode_string(
+                name,
+                field=f"schema {path}.x-comfyng-optional entry",
+            )
+        except ValueError as exc:
+            raise ManifestValidationError(str(exc)) from exc
+    if len(optional_properties) != len(set(optional_properties)):
+        raise ManifestValidationError(
+            f"schema {path}.x-comfyng-optional contains duplicates"
+        )
+    unknown_optional = set(optional_properties) - set(properties)
+    if unknown_optional:
+        raise ManifestValidationError(
+            f"schema {path}.x-comfyng-optional references unknown properties: "
+            f"{', '.join(sorted(unknown_optional))}"
+        )
+    required_optional = set(optional_properties) & set(required)
+    if required_optional:
+        raise ManifestValidationError(
+            f"schema {path}.x-comfyng-optional overlaps required properties: "
+            f"{', '.join(sorted(required_optional))}"
         )
     _validate_type_references(schema, location=str(path))
     return schema
@@ -257,11 +298,16 @@ class NodeDefinition(Contract):
             value = getattr(self, field)
             if not isinstance(value, Path) or not value.is_absolute():
                 raise ValueError(f"{field} must be an absolute path")
+            validate_safe_unicode_string(str(value), field=field)
         for field in ("input_schema", "output_schema"):
             value = getattr(self, field)
-            if type(value) is not dict:
+            if not isinstance(value, Mapping):
                 raise ValueError(f"{field} must be a JSON object")
-            validate_json_value(value, path=f"$.{field}")
+            object.__setattr__(
+                self,
+                field,
+                freeze_json_value(value, path=f"$.{field}"),
+            )
         for field in ("category", "description"):
             value = getattr(self, field)
             if value is not None:
@@ -300,13 +346,30 @@ class PluginManifest(Contract):
             raise ValueError("manifest contains duplicate node id/version pairs")
         if not isinstance(self.source_path, Path) or not self.source_path.is_absolute():
             raise ValueError("manifest source_path must be absolute")
-        if not isinstance(self.permissions, Mapping) or any(
-            not isinstance(name, str) or type(enabled) is not bool
-            for name, enabled in self.permissions.items()
+        validate_safe_unicode_string(str(self.source_path), field="manifest source_path")
+        if not isinstance(self.permissions, Mapping):
+            raise ValueError("manifest permissions must be a boolean mapping")
+        frozen_permissions = freeze_json_value(
+            self.permissions,
+            path="$.permissions",
+        )
+        if not isinstance(frozen_permissions, FrozenDict) or any(
+            type(enabled) is not bool for enabled in frozen_permissions.values()
         ):
             raise ValueError("manifest permissions must be a boolean mapping")
-        if any(not isinstance(item, str) or not item for item in self.dependencies):
-            raise ValueError("manifest dependencies must be non-empty strings")
+        object.__setattr__(self, "permissions", frozen_permissions)
+        if type(self.dependencies) not in (list, tuple):
+            raise ValueError("manifest dependencies must be a list or tuple")
+        dependencies: list[str] = []
+        for item in self.dependencies:
+            dependency = validate_safe_unicode_string(
+                item,
+                field="manifest dependency",
+            )
+            if not dependency:
+                raise ValueError("manifest dependencies must be non-empty strings")
+            dependencies.append(dependency)
+        object.__setattr__(self, "dependencies", tuple(dependencies))
         if self.signature is not None:
             _string(self.signature, field="manifest.signature")
 
