@@ -15,6 +15,7 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).parents[2]
 EXPECTED_CORE_DISTRIBUTIONS = {
+    "aiosqlite",
     "fastapi",
     "pydantic",
     "pydantic-settings",

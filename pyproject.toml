@@ -11,6 +11,7 @@ requires-python = ">=3.14"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = [
+  "aiosqlite>=0.22,<1",
   "fastapi>=0.116,<1",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
@@ -32,6 +33,7 @@ packages = ["src/comfyng"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "config/default.yaml" = "comfyng/config/default.yaml"
+"migrations" = "comfyng/database/migrations"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
