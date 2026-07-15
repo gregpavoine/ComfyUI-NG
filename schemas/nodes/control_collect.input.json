@@ -5,7 +5,17 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "item": {},
+    "item": {
+      "type": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    },
     "index": {
       "type": "integer",
       "minimum": 0

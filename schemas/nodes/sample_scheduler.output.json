@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_SAMPLER_CONFIG@1"
     }
-  }
+  },
+  "required": [
+    "sampler_config"
+  ]
 }

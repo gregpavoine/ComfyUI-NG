@@ -13,6 +13,7 @@ license-files = ["LICENSE"]
 dependencies = [
   "aiosqlite>=0.22,<1",
   "fastapi>=0.116,<1",
+  "jsonschema>=4.23,<5",
   "msgspec>=0.19,<1",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",

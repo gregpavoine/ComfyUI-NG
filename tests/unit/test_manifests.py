@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from comfyng.core.enums import LoadPolicy, UnloadPolicy
 from comfyng.core.errors import ManifestValidationError, PathContainmentError
 from comfyng.plugins.manifest import PluginManifest
 
@@ -47,8 +48,8 @@ language = "python"
 python = ">=3.14"
 entrypoint = "{entrypoint}"
 isolation = "gpu_model_worker"
-load_policy = "load_on_execution"
-unload_policy = "unload_after_idle"
+load_policy = "LOAD_ON_EXECUTION"
+unload_policy = "UNLOAD_AFTER_IDLE"
 idle_timeout_seconds = 30
 
 [resources]
@@ -91,6 +92,17 @@ def test_manifest_loads_schemas_and_round_trips_as_a_frozen_contract(
         manifest.schema_version = 2  # type: ignore[misc]
 
 
+def test_runtime_policy_literals_match_the_normative_policy_list() -> None:
+    assert LoadPolicy.LOAD_ON_EXECUTION.value == "LOAD_ON_EXECUTION"
+    assert LoadPolicy.PRELOAD_ON_WORKFLOW_OPEN.value == "PRELOAD_ON_WORKFLOW_OPEN"
+    assert LoadPolicy.PRELOAD_ON_QUEUE.value == "PRELOAD_ON_QUEUE"
+    assert LoadPolicy.KEEP_WARM.value == "KEEP_WARM"
+    assert UnloadPolicy.UNLOAD_AFTER_EXECUTION.value == "UNLOAD_AFTER_EXECUTION"
+    assert UnloadPolicy.UNLOAD_AFTER_IDLE.value == "UNLOAD_AFTER_IDLE"
+    assert UnloadPolicy.UNLOAD_ON_MEMORY_PRESSURE.value == "UNLOAD_ON_MEMORY_PRESSURE"
+    assert UnloadPolicy.PERSISTENT.value == "PERSISTENT"
+
+
 @pytest.mark.parametrize("version", ("1", "v1.0.0", "01.0.0", "1.0", "1.0.0.0"))
 def test_manifest_rejects_non_semver_package_versions(
     tmp_path: Path,
@@ -99,6 +111,24 @@ def test_manifest_rejects_non_semver_package_versions(
     manifest_path = _write_manifest(tmp_path, version=version)
 
     with pytest.raises(ManifestValidationError, match="semantic version"):
+        PluginManifest.load(manifest_path, root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"package_id": "ng-test"},
+        {"node_id": "ng-test"},
+    ),
+    ids=("package", "node"),
+)
+def test_manifest_identifiers_require_a_real_dot_separator(
+    tmp_path: Path,
+    changes: dict[str, str],
+) -> None:
+    manifest_path = _write_manifest(tmp_path, **changes)
+
+    with pytest.raises(ManifestValidationError, match="dotted"):
         PluginManifest.load(manifest_path, root=tmp_path)
 
 
@@ -146,6 +176,23 @@ def test_manifest_rejects_invalid_nested_json_schema_keywords(tmp_path: Path) ->
     )
 
     with pytest.raises(ManifestValidationError, match="type"):
+        PluginManifest.load(manifest_path, root=tmp_path)
+
+
+def test_manifest_validates_the_full_draft_2020_12_metaschema(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    _write_schema(
+        tmp_path / "schemas/input.json",
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "guidance": {"type": "number", "minimum": "not-a-number"}
+            },
+        },
+    )
+
+    with pytest.raises(ManifestValidationError, match="Draft 2020-12"):
         PluginManifest.load(manifest_path, root=tmp_path)
 
 

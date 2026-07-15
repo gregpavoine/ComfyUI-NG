@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_LATENT@1"
     }
-  }
+  },
+  "required": [
+    "noise"
+  ]
 }

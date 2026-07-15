@@ -8,5 +8,8 @@
     "performance_profile": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "performance_profile"
+  ]
 }

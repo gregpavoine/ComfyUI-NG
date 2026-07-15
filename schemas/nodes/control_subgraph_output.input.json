@@ -9,7 +9,17 @@
       "type": "string",
       "minLength": 1
     },
-    "value": {}
+    "value": {
+      "type": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    }
   },
   "required": [
     "name",

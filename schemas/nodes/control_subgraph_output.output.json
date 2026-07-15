@@ -5,6 +5,19 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "value": {}
-  }
+    "value": {
+      "type": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    }
+  },
+  "required": [
+    "value"
+  ]
 }

@@ -5,9 +5,23 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "value": {},
+    "value": {
+      "type": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    },
     "route": {
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "value",
+    "route"
+  ]
 }

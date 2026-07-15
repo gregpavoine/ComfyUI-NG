@@ -9,6 +9,15 @@ class ContractValidationError(ComfyNGError, ValueError):
     """Raised when a serialized domain contract is invalid or unsupported."""
 
 
+class JsonValueValidationError(ContractValidationError):
+    """Raised when a value cannot make a stable JSON round trip."""
+
+    def __init__(self, path: str, reason: str) -> None:
+        self.path = path
+        self.reason = reason
+        super().__init__(f"{path}: {reason}")
+
+
 class IdentifierValidationError(ComfyNGError, ValueError):
     """Raised when a stable identifier does not use the declared syntax."""
 

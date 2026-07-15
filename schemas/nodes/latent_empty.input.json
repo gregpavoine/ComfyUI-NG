@@ -25,5 +25,9 @@
   "required": [
     "width",
     "height"
+  ],
+  "x-comfyng-optional": [
+    "batch_size",
+    "channels"
   ]
 }

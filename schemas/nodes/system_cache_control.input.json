@@ -19,5 +19,8 @@
   },
   "required": [
     "action"
+  ],
+  "x-comfyng-optional": [
+    "namespace"
   ]
 }

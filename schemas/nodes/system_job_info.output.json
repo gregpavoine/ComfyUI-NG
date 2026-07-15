@@ -8,5 +8,8 @@
     "job_info": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "job_info"
+  ]
 }

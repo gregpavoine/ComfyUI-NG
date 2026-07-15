@@ -62,5 +62,10 @@
     "denoise",
     "sampler",
     "scheduler"
+  ],
+  "x-comfyng-optional": [
+    "performance_profile",
+    "cache_profile",
+    "preview_profile"
   ]
 }

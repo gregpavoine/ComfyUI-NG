@@ -12,5 +12,9 @@
     "metadata": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "image",
+    "metadata"
+  ]
 }

@@ -19,5 +19,8 @@
   "required": [
     "text_encoder",
     "prompt"
+  ],
+  "x-comfyng-optional": [
+    "negative_prompt"
   ]
 }

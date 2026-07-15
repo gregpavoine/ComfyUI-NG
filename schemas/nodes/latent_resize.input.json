@@ -30,5 +30,8 @@
     "latent",
     "width",
     "height"
+  ],
+  "x-comfyng-optional": [
+    "mode"
   ]
 }

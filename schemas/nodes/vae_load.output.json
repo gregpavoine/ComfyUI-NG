@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_VAE@1"
     }
-  }
+  },
+  "required": [
+    "vae"
+  ]
 }

@@ -8,5 +8,8 @@
     "unloaded": {
       "type": "boolean"
     }
-  }
+  },
+  "required": [
+    "unloaded"
+  ]
 }

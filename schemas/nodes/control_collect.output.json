@@ -9,5 +9,8 @@
       "type": "array",
       "items": {}
     }
-  }
+  },
+  "required": [
+    "items"
+  ]
 }

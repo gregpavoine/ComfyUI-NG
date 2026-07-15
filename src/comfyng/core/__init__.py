@@ -7,10 +7,12 @@ from .enums import (
     LoadPolicy,
     NodeLifecycleState,
     RuntimeIsolation,
+    SerializationStrategy,
     TransferPolicy,
     UnloadPolicy,
 )
-from .errors import ComfyNGError
+from .errors import ComfyNGError, JsonValueValidationError
+from .json_values import validate_json_value
 
 __all__ = [
     "ComfyNGError",
@@ -19,9 +21,12 @@ __all__ = [
     "LifecycleState",
     "LoadPolicy",
     "NodeLifecycleState",
+    "JsonValueValidationError",
     "RuntimeIsolation",
+    "SerializationStrategy",
     "TransferPolicy",
     "UnloadPolicy",
     "decode_contract",
     "register_contract",
+    "validate_json_value",
 ]

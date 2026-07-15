@@ -15,5 +15,8 @@
   },
   "required": [
     "path"
+  ],
+  "x-comfyng-optional": [
+    "family"
   ]
 }

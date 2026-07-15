@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_LORA_STACK@1"
     }
-  }
+  },
+  "required": [
+    "lora_stack"
+  ]
 }

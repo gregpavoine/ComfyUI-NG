@@ -5,16 +5,23 @@ from uuid import uuid4
 
 import pytest
 
-from comfyng.core.enums import LifecycleState, TransferPolicy
+from comfyng.core.enums import (
+    LifecycleState,
+    SerializationStrategy,
+    TransferPolicy,
+)
 from comfyng.core.errors import (
     DuplicateTypeDefinitionError,
     InvalidLifecycleTransition,
+    JsonValueValidationError,
     UnknownTypeDefinitionError,
 )
 from comfyng.graph.types import (
     Edge,
     Graph,
+    InputBinding,
     NodeInstance,
+    OutputBinding,
     PortTypeDefinition,
     TensorHandle,
     TypeRef,
@@ -45,6 +52,22 @@ def _capabilities() -> ModelCapabilities:
         schedulers=("simple", "beta"),
         attention_backends=("sdpa", "flash_attention_2"),
     )
+
+
+def _capability_constructor_values() -> dict[str, object]:
+    capabilities = _capabilities()
+    values = capabilities.to_builtins()
+    values["task_types"] = capabilities.task_types
+    for field in (
+        "supported_dtypes",
+        "supported_quantizations",
+        "text_encoder_layout",
+        "samplers",
+        "schedulers",
+        "attention_backends",
+    ):
+        values[field] = getattr(capabilities, field)
+    return values
 
 
 def test_capabilities_and_model_handle_are_frozen_versioned_contracts(
@@ -92,6 +115,33 @@ def test_model_capabilities_reject_invalid_values(field: str, value: object) -> 
 
     with pytest.raises(ValueError):
         ModelCapabilities.from_builtins(values)
+
+
+def test_model_capabilities_requires_a_frozenset_for_task_types() -> None:
+    values = _capability_constructor_values()
+    values["task_types"] = tuple(values["task_types"])  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="task_types"):
+        ModelCapabilities(**values)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "supported_dtypes",
+        "supported_quantizations",
+        "text_encoder_layout",
+        "samplers",
+        "schedulers",
+        "attention_backends",
+    ),
+)
+def test_model_capabilities_requires_tuples_for_ordered_collections(field: str) -> None:
+    values = _capability_constructor_values()
+    values[field] = frozenset(values[field])  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=field):
+        ModelCapabilities(**values)  # type: ignore[arg-type]
 
 
 def test_model_handle_rejects_relative_paths_invalid_hashes_and_negative_sizes(
@@ -144,7 +194,10 @@ def test_graph_and_tensor_handles_round_trip_without_payload_copies() -> None:
                 id=second_id,
                 type_id="ng.sample.run",
                 type_version="1.0.0",
-                inputs={"seed": 7},
+                inputs={
+                    "seed": 7,
+                    "options": [1, {"preview": True}, None, 0.5],
+                },
             ),
         ),
         edges=(
@@ -155,8 +208,12 @@ def test_graph_and_tensor_handles_round_trip_without_payload_copies() -> None:
                 target_port="latent",
             ),
         ),
-        inputs={"prompt": {"node_id": str(second_id), "port": "prompt"}},
-        outputs={"latent": {"node_id": str(second_id), "port": "latent"}},
+        inputs={
+            "prompt": InputBinding(node_id=second_id, port="prompt"),
+        },
+        outputs={
+            "latent": OutputBinding(node_id=second_id, port="latent"),
+        },
     )
 
     assert TensorHandle.from_json(tensor.to_json()) == tensor
@@ -169,17 +226,83 @@ def test_graph_and_tensor_handles_round_trip_without_payload_copies() -> None:
         graph.version = 4  # type: ignore[misc]
 
 
+@pytest.mark.parametrize(
+    "invalid",
+    (
+        object(),
+        b"bytes-are-not-json",
+        {1: "non-string-key"},
+        float("nan"),
+        float("inf"),
+        ("tuple", "changes-shape-on-decode"),
+        chr(0xD800),
+    ),
+    ids=(
+        "object",
+        "bytes",
+        "non-string-key",
+        "nan",
+        "infinity",
+        "tuple",
+        "unpaired-surrogate",
+    ),
+)
+def test_node_instances_reject_values_without_stable_json_round_trips(
+    invalid: object,
+) -> None:
+    with pytest.raises(JsonValueValidationError) as caught:
+        NodeInstance(
+            id=uuid4(),
+            type_id="ng.test.value",
+            type_version="1.0.0",
+            inputs={"payload": invalid},
+        )
+
+    assert caught.value.path == "$.inputs.payload"
+
+
+def test_model_metadata_and_graph_bindings_are_strictly_typed(tmp_path: Path) -> None:
+    with pytest.raises(JsonValueValidationError) as caught:
+        ModelHandle(
+            id=uuid4(),
+            family="flux1",
+            architecture="flux-transformer-2d",
+            local_path=(tmp_path / "model.safetensors").resolve(),
+            sha256="c" * 64,
+            size_bytes=1,
+            source_provider=None,
+            source_model_id=None,
+            source_revision=None,
+            metadata={"unsafe": object()},
+        )
+    assert caught.value.path == "$.metadata.unsafe"
+
+    node_id = uuid4()
+    with pytest.raises(ValueError, match="InputBinding"):
+        Graph(
+            id=uuid4(),
+            version=1,
+            nodes=(),
+            edges=(),
+            inputs={"prompt": {"node_id": str(node_id), "port": "prompt"}},
+            outputs={},
+        )
+
+
 def test_versioned_type_registry_rejects_duplicates_and_unknown_versions() -> None:
     registry = TypeRegistry()
     image_v1 = PortTypeDefinition(
         ref=TypeRef(name="NG_IMAGE", version=1),
         schema={"type": "string", "format": "comfyng-handle"},
+        serialization_strategy=SerializationStrategy.SHARED_HANDLE,
         transfer_policy=TransferPolicy.HANDLE,
     )
     registry.register(image_v1)
 
     assert registry.resolve("NG_IMAGE", 1) == image_v1
     assert registry.resolve_ref("NG_IMAGE@1") == image_v1
+    assert image_v1.serialization_strategy is SerializationStrategy.SHARED_HANDLE
+    assert PortTypeDefinition.from_json(image_v1.to_json()) == image_v1
 
     with pytest.raises(DuplicateTypeDefinitionError):
         registry.register(image_v1)
@@ -187,6 +310,8 @@ def test_versioned_type_registry_rejects_duplicates_and_unknown_versions() -> No
         registry.resolve("NG_IMAGE", 2)
     with pytest.raises(ValueError):
         TypeRef.parse("NG_IMAGE")
+    with pytest.raises(ValueError, match="NG_"):
+        TypeRef.parse("MODEL@1")
 
 
 def test_lifecycle_allows_only_declared_transitions() -> None:

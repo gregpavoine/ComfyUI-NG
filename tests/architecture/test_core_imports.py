@@ -17,6 +17,7 @@ PROJECT_ROOT = Path(__file__).parents[2]
 EXPECTED_CORE_DISTRIBUTIONS = {
     "aiosqlite",
     "fastapi",
+    "jsonschema",
     "msgspec",
     "pydantic",
     "pydantic-settings",

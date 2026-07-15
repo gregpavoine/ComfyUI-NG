@@ -75,17 +75,17 @@ NodeLifecycleState = LifecycleState
 
 
 class LoadPolicy(StrEnum):
-    LOAD_ON_EXECUTION = "load_on_execution"
-    PRELOAD_ON_WORKFLOW_OPEN = "preload_on_workflow_open"
-    PRELOAD_ON_QUEUE = "preload_on_queue"
-    KEEP_WARM = "keep_warm"
+    LOAD_ON_EXECUTION = "LOAD_ON_EXECUTION"
+    PRELOAD_ON_WORKFLOW_OPEN = "PRELOAD_ON_WORKFLOW_OPEN"
+    PRELOAD_ON_QUEUE = "PRELOAD_ON_QUEUE"
+    KEEP_WARM = "KEEP_WARM"
 
 
 class UnloadPolicy(StrEnum):
-    UNLOAD_AFTER_EXECUTION = "unload_after_execution"
-    UNLOAD_AFTER_IDLE = "unload_after_idle"
-    UNLOAD_ON_MEMORY_PRESSURE = "unload_on_memory_pressure"
-    PERSISTENT = "persistent"
+    UNLOAD_AFTER_EXECUTION = "UNLOAD_AFTER_EXECUTION"
+    UNLOAD_AFTER_IDLE = "UNLOAD_AFTER_IDLE"
+    UNLOAD_ON_MEMORY_PRESSURE = "UNLOAD_ON_MEMORY_PRESSURE"
+    PERSISTENT = "PERSISTENT"
 
 
 class TransferPolicy(StrEnum):
@@ -94,6 +94,12 @@ class TransferPolicy(StrEnum):
     SAME_WORKER = "same_worker"
     SHARED_MEMORY = "shared_memory"
     TEMPORARY_FILE = "temporary_file"
+
+
+class SerializationStrategy(StrEnum):
+    JSON = "JSON"
+    MSGSPEC = "MSGSPEC"
+    SHARED_HANDLE = "SHARED_HANDLE"
 
 
 class RuntimeIsolation(StrEnum):

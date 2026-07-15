@@ -5,8 +5,28 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "left": {},
-    "right": {},
+    "left": {
+      "type": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    },
+    "right": {
+      "type": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    },
     "operator": {
       "type": "string",
       "enum": [

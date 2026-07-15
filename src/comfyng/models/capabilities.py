@@ -7,6 +7,7 @@ from uuid import UUID
 
 from comfyng.core.contracts import Contract, register_contract
 from comfyng.core.ids import validate_sha256
+from comfyng.core.json_values import validate_json_value
 
 
 def _non_empty(value: object, *, field: str) -> str:
@@ -15,9 +16,16 @@ def _non_empty(value: object, *, field: str) -> str:
     return value
 
 
-def _unique_non_empty(values: object, *, field: str) -> None:
-    if not isinstance(values, (tuple, frozenset)) or not values:
-        raise ValueError(f"{field} must be non-empty")
+def _unique_non_empty(
+    values: object,
+    *,
+    field: str,
+    collection_type: type[tuple] | type[frozenset],
+) -> None:
+    if type(values) is not collection_type or not values:
+        raise ValueError(
+            f"{field} must be a non-empty {collection_type.__name__}"
+        )
     if any(not isinstance(item, str) or not item for item in values):
         raise ValueError(f"{field} must contain non-empty strings")
     if len(values) != len(set(values)):
@@ -56,8 +64,12 @@ class ModelCapabilities(Contract):
             raise ValueError("latent_channels must be positive")
         if type(self.latent_scale_factor) is not int or self.latent_scale_factor <= 0:
             raise ValueError("latent_scale_factor must be positive")
+        _unique_non_empty(
+            self.task_types,
+            field="task_types",
+            collection_type=frozenset,
+        )
         for field, values in (
-            ("task_types", self.task_types),
             ("supported_dtypes", self.supported_dtypes),
             ("supported_quantizations", self.supported_quantizations),
             ("text_encoder_layout", self.text_encoder_layout),
@@ -65,7 +77,7 @@ class ModelCapabilities(Contract):
             ("schedulers", self.schedulers),
             ("attention_backends", self.attention_backends),
         ):
-            _unique_non_empty(values, field=field)
+            _unique_non_empty(values, field=field, collection_type=tuple)
         for field in (
             "supports_negative_prompt",
             "supports_cfg",
@@ -104,8 +116,9 @@ class ModelHandle(Contract):
         validate_sha256(self.sha256)
         if type(self.size_bytes) is not int or self.size_bytes < 0:
             raise ValueError("size_bytes must be non-negative")
-        if not isinstance(self.metadata, Mapping):
-            raise ValueError("metadata must be a mapping")
+        if type(self.metadata) is not dict:
+            raise ValueError("metadata must be a JSON object")
+        validate_json_value(self.metadata, path="$.metadata")
         for field in ("source_provider", "source_model_id", "source_revision"):
             value = getattr(self, field)
             if value is not None and (not isinstance(value, str) or not value):

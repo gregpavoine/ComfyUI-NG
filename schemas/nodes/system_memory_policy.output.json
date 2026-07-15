@@ -8,5 +8,8 @@
     "memory_policy": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "memory_policy"
+  ]
 }

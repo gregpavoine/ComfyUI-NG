@@ -7,7 +7,7 @@ from uuid import UUID
 import msgspec
 
 from comfyng.core.contracts import Contract, register_contract
-from comfyng.core.enums import TransferPolicy
+from comfyng.core.enums import SerializationStrategy, TransferPolicy
 from comfyng.core.errors import (
     DuplicateTypeDefinitionError,
     UnknownTypeDefinitionError,
@@ -18,6 +18,7 @@ from comfyng.core.ids import (
     validate_semver,
     validate_type_name,
 )
+from comfyng.core.json_values import validate_json_value
 
 
 @register_contract
@@ -51,13 +52,19 @@ class PortTypeDefinition(Contract):
 
     ref: TypeRef
     schema: Mapping[str, Any]
+    serialization_strategy: SerializationStrategy
     transfer_policy: TransferPolicy
 
     def __post_init__(self) -> None:
         if not isinstance(self.ref, TypeRef):
             raise ValueError("ref must be a TypeRef")
-        if not isinstance(self.schema, Mapping):
-            raise ValueError("schema must be a mapping")
+        if type(self.schema) is not dict:
+            raise ValueError("schema must be a JSON object")
+        validate_json_value(self.schema, path="$.schema")
+        if not isinstance(self.serialization_strategy, SerializationStrategy):
+            raise ValueError(
+                "serialization_strategy must be a SerializationStrategy"
+            )
         if not isinstance(self.transfer_policy, TransferPolicy):
             raise ValueError("transfer_policy must be a TransferPolicy")
 
@@ -144,13 +151,12 @@ class NodeInstance(Contract):
         validate_semver(self.type_version, field="type_version")
         for field in ("inputs", "metadata"):
             value = getattr(self, field)
-            if not isinstance(value, Mapping):
-                raise ValueError(f"{field} must be a mapping")
-            for key in value:
-                if field == "inputs":
+            if type(value) is not dict:
+                raise ValueError(f"{field} must be a JSON object")
+            validate_json_value(value, path=f"$.{field}")
+            if field == "inputs":
+                for key in value:
                     validate_port_name(key, field="input name")
-                elif not isinstance(key, str):
-                    raise ValueError("metadata keys must be strings")
 
 
 @register_contract
@@ -180,6 +186,32 @@ class Edge(Contract):
 
 
 @register_contract
+class InputBinding(Contract):
+    TYPE_ID: ClassVar[str] = "comfyng.input-binding"
+
+    node_id: UUID
+    port: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.node_id, UUID):
+            raise ValueError("node_id must be a UUID")
+        validate_port_name(self.port, field="input binding port")
+
+
+@register_contract
+class OutputBinding(Contract):
+    TYPE_ID: ClassVar[str] = "comfyng.output-binding"
+
+    node_id: UUID
+    port: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.node_id, UUID):
+            raise ValueError("node_id must be a UUID")
+        validate_port_name(self.port, field="output binding port")
+
+
+@register_contract
 class Graph(Contract):
     TYPE_ID: ClassVar[str] = "comfyng.graph"
 
@@ -187,8 +219,8 @@ class Graph(Contract):
     version: int
     nodes: tuple[NodeInstance, ...]
     edges: tuple[Edge, ...]
-    inputs: Mapping[str, Any] = msgspec.field(default_factory=dict)
-    outputs: Mapping[str, Any] = msgspec.field(default_factory=dict)
+    inputs: Mapping[str, InputBinding] = msgspec.field(default_factory=dict)
+    outputs: Mapping[str, OutputBinding] = msgspec.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, UUID):
@@ -203,12 +235,19 @@ class Graph(Contract):
             not isinstance(edge, Edge) for edge in self.edges
         ):
             raise ValueError("edges must be a tuple of Edge values")
-        for field in ("inputs", "outputs"):
+        for field, binding_type in (
+            ("inputs", InputBinding),
+            ("outputs", OutputBinding),
+        ):
             value = getattr(self, field)
-            if not isinstance(value, Mapping) or any(
-                not isinstance(key, str) or not key for key in value
-            ):
-                raise ValueError(f"{field} must be a string-keyed mapping")
+            if type(value) is not dict:
+                raise ValueError(f"{field} must be a JSON object")
+            for key, binding in value.items():
+                validate_port_name(key, field=f"graph {field} name")
+                if not isinstance(binding, binding_type):
+                    raise ValueError(
+                        f"graph {field} values must be {binding_type.__name__} values"
+                    )
 
 
 def _default_types() -> tuple[PortTypeDefinition, ...]:
@@ -230,6 +269,11 @@ def _default_types() -> tuple[PortTypeDefinition, ...]:
         PortTypeDefinition(
             ref=TypeRef(name=name, version=1),
             schema={"type": "string", "x-comfyng-type": f"{name}@1"},
+            serialization_strategy=(
+                SerializationStrategy.SHARED_HANDLE
+                if policy is TransferPolicy.HANDLE
+                else SerializationStrategy.JSON
+            ),
             transfer_policy=policy,
         )
         for name, policy in policies.items()

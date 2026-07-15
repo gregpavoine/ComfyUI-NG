@@ -86,8 +86,8 @@ language = "python"
 python = ">=3.14"
 entrypoint = "sentinel_runtime:create_runtime"
 isolation = "plugin_worker"
-load_policy = "load_on_execution"
-unload_policy = "unload_after_execution"
+load_policy = "LOAD_ON_EXECUTION"
+unload_policy = "UNLOAD_AFTER_EXECUTION"
 idle_timeout_seconds = 0
 
 [resources]
@@ -114,6 +114,24 @@ def test_official_catalogue_exposes_exactly_40_display_names() -> None:
     assert catalogue.get("ng.sample.run", "1.0.0").display_name == "NG Sampler"
     assert all(node.input_schema["type"] == "object" for node in catalogue.nodes)
     assert all(node.output_schema["type"] == "object" for node in catalogue.nodes)
+
+
+def test_official_schemas_declare_every_required_or_optional_port() -> None:
+    catalogue = NodeCatalogue.discover()
+
+    for node in catalogue.nodes:
+        input_properties = set(node.input_schema["properties"])
+        input_required = set(node.input_schema.get("required", ()))
+        input_optional = set(node.input_schema.get("x-comfyng-optional", ()))
+        assert node.input_schema["additionalProperties"] is False, node.id
+        assert input_required.isdisjoint(input_optional), node.id
+        assert input_required | input_optional == input_properties, node.id
+
+        output_properties = node.output_schema["properties"]
+        assert output_properties, node.id
+        assert node.output_schema["additionalProperties"] is False, node.id
+        assert set(node.output_schema.get("required", ())) == set(output_properties), node.id
+        assert all(definition for definition in output_properties.values()), node.id
 
 
 def test_discovery_never_imports_a_runtime_entrypoint(

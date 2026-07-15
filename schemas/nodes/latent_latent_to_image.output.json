@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_IMAGE@1"
     }
-  }
+  },
+  "required": [
+    "image"
+  ]
 }

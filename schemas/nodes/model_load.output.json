@@ -13,5 +13,9 @@
       "type": "string",
       "x-comfyng-type": "NG_MODEL_INFO@1"
     }
-  }
+  },
+  "required": [
+    "model",
+    "model_info"
+  ]
 }

@@ -22,5 +22,9 @@
   },
   "required": [
     "path"
+  ],
+  "x-comfyng-optional": [
+    "model_strength",
+    "encoder_strength"
   ]
 }

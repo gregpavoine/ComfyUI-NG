@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_TEXT_ENCODER@1"
     }
-  }
+  },
+  "required": [
+    "text_encoder"
+  ]
 }

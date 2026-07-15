@@ -9,5 +9,8 @@
       "type": "string",
       "x-comfyng-type": "NG_ARTIFACT@1"
     }
-  }
+  },
+  "required": [
+    "artifact"
+  ]
 }

@@ -8,5 +8,8 @@
     "hardware_info": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "hardware_info"
+  ]
 }

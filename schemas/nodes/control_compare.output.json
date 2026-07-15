@@ -8,5 +8,8 @@
     "result": {
       "type": "boolean"
     }
-  }
+  },
+  "required": [
+    "result"
+  ]
 }

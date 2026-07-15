@@ -12,8 +12,8 @@ language = "python"
 python = ">=3.14"
 entrypoint = "comfyng_models.runtime:create_runtime"
 isolation = "gpu_model_worker"
-load_policy = "keep_warm"
-unload_policy = "unload_on_memory_pressure"
+load_policy = "KEEP_WARM"
+unload_policy = "UNLOAD_ON_MEMORY_PRESSURE"
 idle_timeout_seconds = 300
 
 [resources]

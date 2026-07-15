@@ -14,8 +14,11 @@ _SEMVER_PATTERN = re.compile(
     r"(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?"
     r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
 )
-_DOTTED_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)+$")
-_TYPE_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$")
+_DOTTED_ID_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)+$"
+)
+_TYPE_NAME_PATTERN = re.compile(r"^NG_[A-Z0-9_]+$")
 _ENTRYPOINT_PATTERN = re.compile(
     r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:"
     r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$"

@@ -31,5 +31,8 @@
     "image",
     "width",
     "height"
+  ],
+  "x-comfyng-optional": [
+    "mode"
   ]
 }

@@ -7,6 +7,8 @@ import tomllib
 from typing import Any, ClassVar
 
 import msgspec
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
 
 from comfyng.core.contracts import Contract, register_contract
 from comfyng.core.enums import (
@@ -22,13 +24,11 @@ from comfyng.core.ids import (
     validate_package_id,
     validate_semver,
 )
+from comfyng.core.json_values import validate_json_value
 from comfyng.graph.types import DEFAULT_TYPE_REGISTRY, TypeRef
 
 
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
-JSON_SCHEMA_TYPES = frozenset(
-    ("null", "boolean", "object", "array", "number", "string", "integer")
-)
 
 
 def _string(value: object, *, field: str) -> str:
@@ -81,61 +81,22 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _validate_schema_node(value: object, *, location: str) -> None:
-    if not isinstance(value, Mapping):
-        raise ManifestValidationError(f"schema {location} must be an object")
-    schema_type = value.get("type")
-    if schema_type is not None:
-        if isinstance(schema_type, str):
-            schema_types = (schema_type,)
-        elif isinstance(schema_type, list) and schema_type:
-            schema_types = tuple(schema_type)
-        else:
-            raise ManifestValidationError(
-                f"schema {location}.type must be a type name or non-empty array"
-            )
-        if (
-            any(not isinstance(item, str) or item not in JSON_SCHEMA_TYPES for item in schema_types)
-            or len(schema_types) != len(set(schema_types))
-        ):
-            raise ManifestValidationError(
-                f"schema {location}.type contains an invalid or duplicate type"
-            )
-    port_type = value.get("x-comfyng-type")
-    if port_type is not None:
-        try:
-            DEFAULT_TYPE_REGISTRY.resolve_ref(TypeRef.parse(port_type))
-        except (TypeError, ValueError) as exc:
-            raise ManifestValidationError(
-                f"schema {location} has invalid x-comfyng-type: {port_type!r}"
-            ) from exc
-    properties = value.get("properties")
-    if properties is not None:
-        if not isinstance(properties, Mapping):
-            raise ManifestValidationError(f"schema {location}.properties must be an object")
-        for name, child in properties.items():
-            if not isinstance(name, str) or not name:
+def _validate_type_references(value: object, *, location: str) -> None:
+    if isinstance(value, Mapping):
+        port_type = value.get("x-comfyng-type")
+        if port_type is not None:
+            try:
+                DEFAULT_TYPE_REGISTRY.resolve_ref(TypeRef.parse(port_type))
+            except (TypeError, ValueError) as exc:
                 raise ManifestValidationError(
-                    f"schema {location}.properties has an invalid name"
-                )
-            _validate_schema_node(child, location=f"{location}.properties.{name}")
-    for keyword in ("items", "additionalProperties"):
-        child = value.get(keyword)
-        if isinstance(child, Mapping):
-            _validate_schema_node(child, location=f"{location}.{keyword}")
-        elif child is not None and keyword == "additionalProperties" and type(child) is not bool:
-            raise ManifestValidationError(
-                f"schema {location}.additionalProperties must be boolean or an object"
-            )
-    for keyword in ("allOf", "anyOf", "oneOf"):
-        children = value.get(keyword)
-        if children is not None:
-            if not isinstance(children, list) or not children:
-                raise ManifestValidationError(
-                    f"schema {location}.{keyword} must be a non-empty array"
-                )
-            for index, child in enumerate(children):
-                _validate_schema_node(child, location=f"{location}.{keyword}[{index}]")
+                    f"schema {location} has invalid x-comfyng-type: {port_type!r}"
+                ) from exc
+        for key, child in value.items():
+            if key != "x-comfyng-type":
+                _validate_type_references(child, location=f"{location}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_type_references(child, location=f"{location}[{index}]")
 
 
 def load_json_schema(path: Path) -> dict[str, Any]:
@@ -154,6 +115,12 @@ def load_json_schema(path: Path) -> dict[str, Any]:
         )
     if schema.get("type") != "object":
         raise ManifestValidationError(f"schema {path} root type must be object")
+    try:
+        Draft202012Validator.check_schema(schema)
+    except SchemaError as exc:
+        raise ManifestValidationError(
+            f"schema {path} is not valid Draft 2020-12 JSON Schema: {exc.message}"
+        ) from exc
     properties = schema.get("properties", {})
     if not isinstance(properties, dict):
         raise ManifestValidationError(f"schema {path}.properties must be an object")
@@ -170,7 +137,7 @@ def load_json_schema(path: Path) -> dict[str, Any]:
             f"schema {path}.required references unknown properties: "
             f"{', '.join(sorted(missing))}"
         )
-    _validate_schema_node(schema, location=str(path))
+    _validate_type_references(schema, location=str(path))
     return schema
 
 
@@ -291,8 +258,10 @@ class NodeDefinition(Contract):
             if not isinstance(value, Path) or not value.is_absolute():
                 raise ValueError(f"{field} must be an absolute path")
         for field in ("input_schema", "output_schema"):
-            if not isinstance(getattr(self, field), Mapping):
-                raise ValueError(f"{field} must be a mapping")
+            value = getattr(self, field)
+            if type(value) is not dict:
+                raise ValueError(f"{field} must be a JSON object")
+            validate_json_value(value, path=f"$.{field}")
         for field in ("category", "description"):
             value = getattr(self, field)
             if value is not None:

@@ -8,5 +8,8 @@
     "metadata": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "metadata"
+  ]
 }

@@ -15,5 +15,10 @@
     "execution_trace": {
       "type": "object"
     }
-  }
+  },
+  "required": [
+    "latent",
+    "sampling_metrics",
+    "execution_trace"
+  ]
 }

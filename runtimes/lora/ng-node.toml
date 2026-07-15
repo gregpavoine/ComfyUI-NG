@@ -12,8 +12,8 @@ language = "python"
 python = ">=3.14"
 entrypoint = "comfyng_lora.runtime:create_runtime"
 isolation = "gpu_model_worker"
-load_policy = "load_on_execution"
-unload_policy = "unload_after_idle"
+load_policy = "LOAD_ON_EXECUTION"
+unload_policy = "UNLOAD_AFTER_IDLE"
 idle_timeout_seconds = 120
 
 [resources]
