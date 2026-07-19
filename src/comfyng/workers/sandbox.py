@@ -186,7 +186,15 @@ def _install_audit_guard(
     write_roots: tuple[Path, ...],
 ) -> None:
     network_events = frozenset({"socket.bind", "socket.connect", "socket.getaddrinfo"})
-    process_prefixes = ("subprocess.", "os.posix_spawn", "os.spawn", "os.system")
+    process_prefixes = (
+        "subprocess.",
+        "os.posix_spawn",
+        "os.spawn",
+        "os.system",
+        "os.fork",
+        "os.exec",
+        "pty.spawn",
+    )
     null_device = Path(os.devnull).resolve(strict=True)
 
     def require_path(value: object, *, write: bool) -> None:
@@ -268,6 +276,7 @@ def apply_sandbox(
     original_working_directory = Path.cwd().resolve(strict=True)
     runtime_roots: set[Path] = set()
     if policy.allow_runtime_imports:
+        runtime_roots.add(original_working_directory)
         for raw_path in sys.path:
             candidate = Path(raw_path or original_working_directory)
             try:

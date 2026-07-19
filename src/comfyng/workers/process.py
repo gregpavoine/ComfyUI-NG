@@ -91,7 +91,10 @@ class WorkerTransport:
         try:
             self.connection.close()
         finally:
-            self.process.close()
+            try:
+                self.process.close()
+            except (AttributeError, ValueError):
+                pass
 
 
 def start_worker_process(spec: WorkerSpec) -> WorkerTransport:
@@ -131,6 +134,7 @@ def terminate_process_tree(
     group_signalled = False
     if os.name == "posix" and pgid is not None:
         try:
+            os.killpg(pgid, signal.SIGCONT)
             os.killpg(pgid, signal.SIGTERM)
             group_signalled = True
         except ProcessLookupError:
@@ -144,6 +148,7 @@ def terminate_process_tree(
     if process.is_alive():
         if os.name == "posix" and pgid is not None:
             try:
+                os.killpg(pgid, signal.SIGCONT)
                 os.killpg(pgid, signal.SIGKILL)
                 group_signalled = True
             except ProcessLookupError:

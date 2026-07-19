@@ -115,10 +115,33 @@ app.add_typer(workers_app, name="workers")
 
 
 @app.command()
-def serve() -> None:
+def serve(
+    config: Annotated[
+        Path | None,
+        typer.Option("--config", dir_okay=False, help="Optional YAML configuration."),
+    ] = None,
+    host: Annotated[
+        str | None,
+        typer.Option("--host", help="Host address to bind."),
+    ] = None,
+    port: Annotated[
+        int | None,
+        typer.Option("--port", help="Port number to bind."),
+    ] = None,
+) -> None:
     """Start the local ComfyUI-NG service."""
 
-    _service_unavailable("api")
+    from comfyng.api.app import create_app
+    from comfyng.api.server import run_server
+    from comfyng.config import Settings
+
+    settings = Settings.load(path=config)
+    bind_host = host if host is not None else settings.server.host
+    bind_port = port if port is not None else settings.server.port
+
+    typer.echo(f"Starting ComfyUI-NG service on http://{bind_host}:{bind_port}...")
+    api_app = create_app(settings)
+    run_server(api_app, host=bind_host, port=bind_port)
 
 
 @app.command()

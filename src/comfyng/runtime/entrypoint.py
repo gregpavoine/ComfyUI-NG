@@ -191,6 +191,28 @@ class DefaultRuntime:
             return {"loaded": name}
         if operation == "resource_count":
             return {"count": len(self._resources)}
+        if operation == "fork_process":
+            pid = os.fork()
+            if pid == 0:
+                os._exit(0)
+            os.waitpid(pid, 0)
+            return {"forked": pid}
+        if operation == "forkpty_process":
+            if not hasattr(os, "forkpty"):
+                raise RuntimeError("forkpty is unsupported on this platform")
+            pid, fd = os.forkpty()
+            if pid == 0:
+                os._exit(0)
+            os.close(fd)
+            os.waitpid(pid, 0)
+            return {"forked": pid}
+        if operation == "exec_process":
+            os.execv(sys.executable, [sys.executable, "-c", "pass"])
+        if operation == "pty_spawn":
+            import pty
+
+            pty.spawn([sys.executable, "-c", "pass"])
+            return {"spawned": True}
         raise ValueError(f"unknown worker operation: {operation}")
 
     def unload(self) -> Mapping[str, Any]:
@@ -327,6 +349,10 @@ def _event(
 
 def worker_main(connection: Connection, spec_frame: bytes) -> None:
     """Multiprocessing target. All heavy runtime imports happen below this boundary."""
+
+    cwd_str = str(Path.cwd().resolve())
+    if cwd_str not in sys.path:
+        sys.path.insert(0, cwd_str)
 
     spec = decode_frame(spec_frame, WorkerSpec)
     if os.name == "posix":

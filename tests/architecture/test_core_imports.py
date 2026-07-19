@@ -55,7 +55,6 @@ FORBIDDEN_MODULES = (
     "xformers",
 )
 UNAVAILABLE_COMMANDS = (
-    (("serve",), "api"),
     (("benchmark",), "benchmark"),
     (("models", "list"), "models"),
     (("models", "inspect"), "models"),
@@ -354,3 +353,24 @@ def test_readme_documents_data_root_precedence() -> None:
 
     positions = [readme.index(marker) for marker in markers]
     assert positions == sorted(positions)
+
+
+def test_serve_command_starts_server() -> None:
+    import time
+    from urllib.request import urlopen
+
+    proc = subprocess.Popen(
+        [_console_script(), "serve", "--port", "8199"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        time.sleep(0.5)
+        with urlopen("http://127.0.0.1:8199/health", timeout=2.0) as response:
+            assert response.status == 200
+            assert b'"status":"ok"' in response.read().replace(b" ", b"")
+    finally:
+        proc.terminate()
+        proc.wait(timeout=2.0)
+
