@@ -5,7 +5,7 @@ export interface NodeDefinition {
   description: string;
   inputs: Array<{ name: string; type: string; required?: boolean }>;
   outputs: Array<{ name: string; type: string }>;
-  parameters: Array<{ name: string; type: string; default?: any; description?: string }>;
+  parameters: Array<{ name: string; type: string; default?: any; options?: string[]; description?: string }>;
 }
 
 export interface SystemInfo {
@@ -25,10 +25,13 @@ export interface Job {
   created_at: string;
   duration_ms: number;
   artefacts: string[];
+  image_url?: string;
+  prompt?: string;
 }
 
 export interface ModelItem {
   name: string;
+  display_name?: string;
   architecture: string;
   size_gb: number;
   format: string;

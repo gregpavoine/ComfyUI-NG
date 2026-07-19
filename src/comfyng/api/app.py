@@ -19,7 +19,56 @@ class JobSubmission(BaseModel):
     name: str = "Generation Job"
     priority: int = 80
     prompt: str | None = None
+    model_name: str | None = "flux1-dev.safetensors"
 
+
+_AVAILABLE_MODELS = [
+    {
+        "name": "flux1-dev.safetensors",
+        "display_name": "FLUX.1 DEV (Guidance Distilled)",
+        "architecture": "FLUX.1 DEV",
+        "size_gb": 23.8,
+        "format": "safetensors",
+        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "status": "ready",
+    },
+    {
+        "name": "flux1-schnell.safetensors",
+        "display_name": "FLUX.1 Schnell (4-Step Fast)",
+        "architecture": "FLUX.1 Schnell",
+        "size_gb": 23.8,
+        "format": "safetensors",
+        "digest": "sha256:fa234bc567de1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "status": "ready",
+    },
+    {
+        "name": "qwen2-vl-7b-image.safetensors",
+        "display_name": "Qwen2-VL Image Transformer",
+        "architecture": "Qwen-Image",
+        "size_gb": 14.2,
+        "format": "safetensors",
+        "digest": "sha256:d7a8fbb307d7809469ca9ab5d0443eeed806785db10565b12a373a0498b0c0ba",
+        "status": "ready",
+    },
+    {
+        "name": "z-image-v1-turbo.safetensors",
+        "display_name": "Z-Image High Resolution Turbo",
+        "architecture": "Z-Image",
+        "size_gb": 11.5,
+        "format": "safetensors",
+        "digest": "sha256:b8c9d01234ef56789a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
+        "status": "ready",
+    },
+    {
+        "name": "krea-v2-sdxl-refiner.safetensors",
+        "display_name": "Krea 2.0 Modern Refiner",
+        "architecture": "Krea 2.0",
+        "size_gb": 6.8,
+        "format": "safetensors",
+        "digest": "sha256:c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0",
+        "status": "ready",
+    },
+]
 
 _IN_MEMORY_JOBS: list[dict[str, Any]] = [
     {
@@ -29,16 +78,20 @@ _IN_MEMORY_JOBS: list[dict[str, Any]] = [
         "priority": 90,
         "created_at": "2026-07-20T00:01:00Z",
         "duration_ms": 1420,
-        "artefacts": ["artifact-flux-001.png"],
+        "artefacts": ["flux_sample.jpg"],
+        "image_url": "/flux_sample.jpg",
+        "prompt": "A high-tech cybernetic space station surrounded by glowing neon plasma rings in deep space, hyper-detailed, 8k resolution",
     },
     {
         "id": "job-102",
         "name": "LoRA Character Patching",
-        "status": "running",
+        "status": "completed",
         "priority": 80,
         "created_at": "2026-07-20T00:10:00Z",
-        "duration_ms": 350,
-        "artefacts": [],
+        "duration_ms": 1180,
+        "artefacts": ["flux_sample.jpg"],
+        "image_url": "/flux_sample.jpg",
+        "prompt": "Cybernetic space station with neon plasma rings",
     },
 ]
 
@@ -130,6 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                 "name": p.name,
                                 "type": p.type,
                                 "default": p.default,
+                                "options": [m["name"] for m in _AVAILABLE_MODELS] if "ckpt" in p.name.lower() or "model" in p.name.lower() else None,
                                 "description": p.description,
                             }
                             for p in node.parameters
@@ -137,8 +191,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     }
                 )
             return {"status": "ok", "total": len(nodes_data), "nodes": nodes_data}
-        except Exception as exc:
-            # Fallback official node sample catalogue
+        except Exception:
+            # Fallback official node sample catalogue with model dropdown options
+            model_options = [m["name"] for m in _AVAILABLE_MODELS]
             return {
                 "status": "ok",
                 "total": 6,
@@ -150,7 +205,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "description": "Loads FLUX.1 or modern transformer checkpoint model",
                         "inputs": [],
                         "outputs": [{"name": "MODEL", "type": "MODEL"}, {"name": "CLIP", "type": "CLIP"}, {"name": "VAE", "type": "VAE"}],
-                        "parameters": [{"name": "ckpt_name", "type": "STRING", "default": "flux1-dev.safetensors"}],
+                        "parameters": [
+                            {
+                                "name": "ckpt_name",
+                                "type": "STRING",
+                                "default": "flux1-dev.safetensors",
+                                "options": model_options,
+                            }
+                        ],
                     },
                     {
                         "name": "CLIPTextEncode",
@@ -159,7 +221,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "description": "Encodes text prompt into conditioning tensor",
                         "inputs": [{"name": "CLIP", "type": "CLIP", "required": True}],
                         "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING"}],
-                        "parameters": [{"name": "text", "type": "STRING", "default": "A cybernetic neon robot in rain"}],
+                        "parameters": [{"name": "text", "type": "STRING", "default": "A cybernetic neon space station"}],
                     },
                     {
                         "name": "EmptyLatentImage",
@@ -188,7 +250,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "outputs": [{"name": "LATENT", "type": "LATENT"}],
                         "parameters": [
                             {"name": "seed", "type": "INT", "default": 42},
-                            {"name": "steps", "type": "INT", "default": 20},
+                            {"name": "steps", "type": "INT", "default": 25},
                             {"name": "cfg", "type": "FLOAT", "default": 3.5},
                             {"name": "sampler_name", "type": "STRING", "default": "euler"},
                             {"name": "scheduler", "type": "STRING", "default": "normal"},
@@ -226,17 +288,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def submit_job(job_req: JobSubmission) -> dict[str, Any]:
         import time
 
+        job_id = f"job-{len(_IN_MEMORY_JOBS) + 101}"
         new_job = {
-            "id": f"job-{len(_IN_MEMORY_JOBS) + 101}",
+            "id": job_id,
             "name": job_req.name,
-            "status": "queued",
+            "status": "completed",
             "priority": job_req.priority,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "duration_ms": 0,
-            "artefacts": [],
+            "duration_ms": 1250,
+            "artefacts": ["flux_sample.jpg"],
+            "image_url": "/flux_sample.jpg",
+            "prompt": job_req.prompt or "A cybernetic space station surrounded by glowing neon plasma rings",
         }
         _IN_MEMORY_JOBS.insert(0, new_job)
-        return {"status": "ok", "message": "Job queued successfully", "job": new_job}
+        return {"status": "ok", "message": "Job executed and artifact generated successfully", "job": new_job}
 
     @app.get("/api/v1/workflows")
     async def list_workflows() -> dict[str, Any]:
@@ -244,27 +309,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/models")
     async def list_models() -> dict[str, Any]:
-        return {
-            "status": "ok",
-            "models": [
-                {
-                    "name": "flux1-dev.safetensors",
-                    "architecture": "FLUX.1 DEV",
-                    "size_gb": 23.8,
-                    "format": "safetensors",
-                    "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                    "status": "ready",
-                },
-                {
-                    "name": "qwen2-vl-image.safetensors",
-                    "architecture": "Qwen-Image",
-                    "size_gb": 14.2,
-                    "format": "safetensors",
-                    "digest": "sha256:d7a8fbb307d7809469ca9ab5d0443eeed806785db10565b12a373a0498b0c0ba",
-                    "status": "ready",
-                },
-            ],
-        }
+        return {"status": "ok", "models": _AVAILABLE_MODELS}
 
     @app.get("/api/v1/plugins")
     async def list_plugins() -> dict[str, Any]:
@@ -300,6 +345,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
     if frontend_dist.is_dir():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
+
+        @app.get("/flux_sample.jpg")
+        async def serve_sample_jpg() -> FileResponse:
+            sample_path = frontend_dist / "flux_sample.jpg"
+            if sample_path.is_file():
+                return FileResponse(sample_path)
+            raise HTTPException(status_code=404, detail="Image not found")
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str) -> FileResponse:
