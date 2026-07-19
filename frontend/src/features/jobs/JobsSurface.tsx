@@ -50,9 +50,11 @@ export const JobsSurface: React.FC = () => {
                 <td style={{ fontWeight: 600 }}>{job.name}</td>
                 <td>
                   {job.status === 'completed' && <span className="badge badge-emerald"><CheckCircle2 size={12} /> Completed</span>}
+                  {job.status === 'preparing' && <span className="badge badge-indigo"><RefreshCw size={12} className="spin" /> Preparing</span>}
                   {job.status === 'running' && <span className="badge badge-indigo"><RefreshCw size={12} className="spin" /> Running</span>}
                   {job.status === 'queued' && <span className="badge badge-amber"><Clock size={12} /> Queued</span>}
                   {job.status === 'failed' && <span className="badge badge-rose"><AlertCircle size={12} /> Failed</span>}
+                  {job.status === 'cancelled' && <span className="badge badge-rose" style={{ opacity: 0.7 }}><X size={12} /> Cancelled</span>}
                 </td>
                 <td><span className="badge badge-indigo">{job.priority}</span></td>
                 <td style={{ color: 'var(--text-muted)' }}>{job.created_at}</td>

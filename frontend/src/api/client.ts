@@ -20,7 +20,7 @@ export interface SystemInfo {
 export interface Job {
   id: string;
   name: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'preparing' | 'running' | 'completed' | 'failed' | 'cancelled';
   priority: number;
   created_at: string;
   duration_ms: number;
@@ -88,13 +88,40 @@ export async function fetchJobs(): Promise<Job[]> {
   }
 }
 
-export async function submitJob(name: string, prompt: string): Promise<Job | null> {
+export async function submitJob(
+  name: string,
+  prompt: string,
+  modelName?: string,
+  seed?: number,
+  steps?: number,
+  width?: number,
+  height?: number
+): Promise<Job | null> {
   try {
     const res = await fetch('/api/v1/jobs/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, prompt }),
+      body: JSON.stringify({
+        name,
+        prompt,
+        model_name: modelName,
+        seed: seed !== undefined ? Number(seed) : undefined,
+        steps: steps !== undefined ? Number(steps) : undefined,
+        width: width !== undefined ? Number(width) : undefined,
+        height: height !== undefined ? Number(height) : undefined,
+      }),
     });
+    const data = await res.json();
+    return data.job || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchJob(jobId: string): Promise<Job | null> {
+  try {
+    const res = await fetch(`/api/v1/jobs/${jobId}`);
+    if (!res.ok) return null;
     const data = await res.json();
     return data.job || null;
   } catch {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { NodeDefinition, ModelItem, fetchNodeCatalogue, fetchModels, submitJob } from '../../api/client';
+import { NodeDefinition, ModelItem, fetchNodeCatalogue, fetchModels, submitJob, fetchJob } from '../../api/client';
 import {
   Play,
   Plus,
@@ -221,28 +221,69 @@ export const EditorSurface: React.FC = () => {
 
   const handleExecute = async () => {
     setIsSubmitting(true);
-    setExecutionProgress(10);
-    setProgressStatus('Initializing FLUX.1 Model Runtime...');
+    setExecutionProgress(5);
+    setProgressStatus('Queueing job in Scheduler...');
 
+    // Extract dynamic parameter values from canvas state
+    const loadNode = nodesOnCanvas.find((n) => n.def.name === 'LoadCheckpoint');
     const clipNode = nodesOnCanvas.find((n) => n.def.name === 'CLIPTextEncode');
+    const latentNode = nodesOnCanvas.find((n) => n.def.name === 'EmptyLatentImage');
+    const samplerNode = nodesOnCanvas.find((n) => n.def.name === 'KSampler');
+
     const promptText = clipNode?.params?.text || 'A high-tech cybernetic space station in deep space';
+    const modelName = loadNode?.params?.ckpt_name || 'flux1-dev.safetensors';
+    const seedVal = samplerNode?.params?.seed ? Number(samplerNode.params.seed) : 42;
+    const stepsVal = samplerNode?.params?.steps ? Number(samplerNode.params.steps) : 25;
+    const widthVal = latentNode?.params?.width ? Number(latentNode.params.width) : 1024;
+    const heightVal = latentNode?.params?.height ? Number(latentNode.params.height) : 1024;
 
-    // Simulate step sampling loop progress
-    setTimeout(() => { setExecutionProgress(35); setProgressStatus('Sampling Diffusion Steps: 10/25...'); }, 400);
-    setTimeout(() => { setExecutionProgress(70); setProgressStatus('Sampling Diffusion Steps: 22/25...'); }, 800);
-    setTimeout(() => { setExecutionProgress(90); setProgressStatus('VAE Decoding Latents to Image...'); }, 1100);
+    const job = await submitJob(
+      'FLUX.1 Interactive Generation',
+      promptText,
+      modelName,
+      seedVal,
+      stepsVal,
+      widthVal,
+      heightVal
+    );
 
-    const res = await submitJob('FLUX.1 Interactive Generation', promptText);
-
-    setTimeout(() => {
+    if (!job) {
       setIsSubmitting(false);
       setExecutionProgress(null);
-      if (res && res.image_url) {
-        setOutputImageUrl(res.image_url);
-        setToastMessage(`Job ${res.id} completed! Real PNG artifact generated in CAS storage.`);
-        setTimeout(() => setToastMessage(null), 4000);
+      alert('Failed to submit job to scheduler.');
+      return;
+    }
+
+    // Start polling job status
+    const pollInterval = setInterval(async () => {
+      const updatedJob = await fetchJob(job.id);
+      if (!updatedJob) return;
+
+      if (updatedJob.status === 'queued') {
+        setExecutionProgress(15);
+        setProgressStatus('Queued in Job Queue...');
+      } else if (updatedJob.status === 'preparing') {
+        setExecutionProgress(40);
+        setProgressStatus('Preparing execution environment & JIT sandboxes...');
+      } else if (updatedJob.status === 'running') {
+        setExecutionProgress(75);
+        setProgressStatus('Sampling diffusion steps in sandboxed process...');
+      } else if (updatedJob.status === 'completed') {
+        clearInterval(pollInterval);
+        setIsSubmitting(false);
+        setExecutionProgress(null);
+        if (updatedJob.image_url) {
+          setOutputImageUrl(updatedJob.image_url);
+          setToastMessage(`Job completed! Real PNG generated in CAS: ${updatedJob.id}`);
+          setTimeout(() => setToastMessage(null), 4000);
+        }
+      } else if (updatedJob.status === 'failed') {
+        clearInterval(pollInterval);
+        setIsSubmitting(false);
+        setExecutionProgress(null);
+        alert('Job execution failed in worker process.');
       }
-    }, 1300);
+    }, 400);
   };
 
   const getPortPos = (nodeId: string, portName: string, isOutput: boolean) => {

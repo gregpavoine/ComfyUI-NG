@@ -1,21 +1,36 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import sys
+import time
 from typing import Any
+import uuid
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from comfyng.config import Settings
 from comfyng.plugins.catalogue import NodeCatalogue
-from comfyng.runtime.generator import generate_workflow_image
+
+# Import real comfyng core/scheduler/events classes
+from comfyng.core.cache import InMemoryNodeResultCache
+from comfyng.core.jobs import InMemoryJobRepository, JobStatus, JobSubmission, JobRecord
+from comfyng.events.bus import EventBus
+from comfyng.events.journal import InMemoryEventJournal
+from comfyng.resources.broker import ResourceBroker
+from comfyng.resources.hardware import probe_hardware
+from comfyng.scheduler.retry import RetryPolicy
+from comfyng.scheduler.scheduler import Scheduler
+from comfyng.api.dispatcher import WorkflowDispatcher
 
 
-class JobSubmission(BaseModel):
+class JobSubmissionDTO(BaseModel):
     workflow_id: str = "workflow-1"
     name: str = "Generation Job"
     priority: int = 80
@@ -75,8 +90,6 @@ _AVAILABLE_MODELS = [
     },
 ]
 
-_IN_MEMORY_JOBS: list[dict[str, Any]] = []
-
 _IN_MEMORY_WORKFLOWS: list[dict[str, Any]] = [
     {
         "id": "wf-flux-t2i",
@@ -95,14 +108,84 @@ _IN_MEMORY_WORKFLOWS: list[dict[str, Any]] = [
 ]
 
 
-def _get_artifacts_dir(app: FastAPI) -> Path:
-    settings: Settings | None = getattr(app.state, "settings", None)
+def _get_artifacts_dir_from_settings(settings: Settings | None) -> Path:
     if settings:
         artifacts_dir = settings.storage.root / "artifacts"
     else:
         artifacts_dir = Path.home() / ".local" / "share" / "comfyui-ng" / "storage" / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     return artifacts_dir
+
+
+def _format_job(record: JobRecord) -> dict[str, Any]:
+    duration_ms = 0
+    if record.finished_at is not None and record.started_at is not None:
+        duration_ms = int((record.finished_at - record.started_at) * 1000)
+
+    image_url = None
+    artefacts = []
+    if record.result and isinstance(record.result, dict):
+        image_url = record.result.get("image_url")
+        filename = record.result.get("filename")
+        if filename:
+            artefacts = [filename]
+
+    return {
+        "id": record.job_id,
+        "name": record.payload.get("name") or "Generation Job",
+        "status": record.status.value,
+        "priority": record.user_priority,
+        "created_at": datetime.fromtimestamp(record.created_at, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "duration_ms": duration_ms,
+        "artefacts": artefacts,
+        "image_url": image_url,
+        "prompt": record.payload.get("prompt"),
+        "seed": record.payload.get("seed"),
+    }
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Retrieve configuration settings
+    settings: Settings | None = getattr(app.state, "settings", None)
+    artifacts_dir = _get_artifacts_dir_from_settings(settings)
+
+    # Initialize real services
+    inventory = probe_hardware()
+    broker = ResourceBroker(inventory=inventory)
+    journal = InMemoryEventJournal()
+    events = EventBus(journal)
+    repository = InMemoryJobRepository()
+    cache = InMemoryNodeResultCache()
+    dispatcher = WorkflowDispatcher(artifacts_dir=artifacts_dir)
+
+    scheduler = Scheduler(
+        repository=repository,
+        events=events,
+        cache=cache,
+        broker=broker,
+        dispatcher=dispatcher,
+        retry_policy=RetryPolicy(max_attempts=3, base_delay_seconds=1),
+    )
+
+    # Save to app state
+    app.state.repository = repository
+    app.state.scheduler = scheduler
+    app.state.events = events
+    app.state.artifacts_dir = artifacts_dir
+
+    # Start the background scheduler task
+    scheduler_task = asyncio.create_task(scheduler.run())
+    app.state.scheduler_task = scheduler_task
+
+    yield
+
+    # Stop scheduler and wait for completion
+    scheduler.stop()
+    try:
+        await asyncio.wait_for(scheduler_task, timeout=3.0)
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        pass
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -115,13 +198,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/api/v1/openapi.json",
+        lifespan=lifespan,
     )
 
     if settings is not None:
         app.state.settings = settings
 
-    @app.get("/")
-    async def root() -> dict[str, Any]:
+    @app.get("/", response_model=None)
+    async def root() -> dict[str, Any] | FileResponse:
         frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
         if frontend_dist.is_dir() and (frontend_dist / "index.html").is_file():
             return FileResponse(frontend_dist / "index.html")
@@ -273,52 +357,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/jobs")
     async def list_jobs() -> dict[str, Any]:
-        return {"status": "ok", "jobs": _IN_MEMORY_JOBS}
+        repository = getattr(app.state, "repository", None)
+        if repository is None:
+            return {"status": "ok", "jobs": []}
+        records = await repository.list()
+        # Sort so that newly created jobs are at the top
+        sorted_records = sorted(records, key=lambda r: r.created_at, reverse=True)
+        return {"status": "ok", "jobs": [_format_job(r) for r in sorted_records]}
+
+    @app.get("/api/v1/jobs/{job_id}")
+    async def get_job(job_id: str) -> dict[str, Any]:
+        repository = getattr(app.state, "repository", None)
+        if repository is None:
+            raise HTTPException(status_code=404, detail="Repository not initialized")
+        record = await repository.get(job_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {"status": "ok", "job": _format_job(record)}
 
     @app.post("/api/v1/jobs/submit")
-    async def submit_job(job_req: JobSubmission) -> dict[str, Any]:
-        import time
+    async def submit_job(job_req: JobSubmissionDTO) -> dict[str, Any]:
+        scheduler = getattr(app.state, "scheduler", None)
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="Scheduler not running")
 
-        artifacts_dir = _get_artifacts_dir(app)
-        prompt_text = job_req.prompt or "A cybernetic space station surrounded by glowing neon plasma rings"
-        seed_val = job_req.seed or (int(time.time() * 1000) % 100000)
-        steps_val = job_req.steps or 25
-        model_val = job_req.model_name or "flux1-dev.safetensors"
-
-        # Generate real unique PNG image artifact in worker runtime
-        artifact = generate_workflow_image(
-            prompt=prompt_text,
-            width=job_req.width or 1024,
-            height=job_req.height or 1024,
-            seed=seed_val,
-            steps=steps_val,
-            cfg=3.5,
-            model_name=model_val,
-            storage_dir=artifacts_dir,
+        job_id = f"job-{int(time.time() * 1000) % 100000}-{uuid.uuid4().hex[:6]}"
+        
+        # Build core submission
+        submission = JobSubmission(
+            job_id=job_id,
+            queue="normal",
+            user_priority=job_req.priority,
+            payload={
+                "name": job_req.name,
+                "prompt": job_req.prompt,
+                "seed": job_req.seed,
+                "steps": job_req.steps,
+                "width": job_req.width,
+                "height": job_req.height,
+                "model_name": job_req.model_name,
+            },
+            workflow_id=job_req.workflow_id or "workflow-1",
+            workflow_version_id=1,
         )
 
-        job_id = f"job-{len(_IN_MEMORY_JOBS) + 101}"
-        image_url = f"/api/v1/artifacts/{artifact['filename']}"
+        record = await scheduler.submit(submission)
+        return {"status": "ok", "message": "Job queued successfully", "job": _format_job(record)}
 
-        new_job = {
-            "id": job_id,
-            "name": f"{job_req.name} ({model_val})",
-            "status": "completed",
-            "priority": job_req.priority,
-            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "duration_ms": 1250,
-            "artefacts": [artifact["filename"]],
-            "image_url": image_url,
-            "prompt": prompt_text,
-            "seed": seed_val,
-            "digest": artifact["digest"],
-        }
-        _IN_MEMORY_JOBS.insert(0, new_job)
-        return {"status": "ok", "message": "Job executed and real artifact generated successfully", "job": new_job}
-
-    @app.get("/api/v1/artifacts/{filename}")
+    @app.get("/api/v1/artifacts/{filename}", response_model=None)
     async def serve_artifact(filename: str) -> FileResponse:
-        artifacts_dir = _get_artifacts_dir(app)
+        artifacts_dir = getattr(app.state, "artifacts_dir", None)
+        if artifacts_dir is None:
+            # Fallback path discovery
+            settings: Settings | None = getattr(app.state, "settings", None)
+            artifacts_dir = _get_artifacts_dir_from_settings(settings)
+        
         file_path = artifacts_dir / filename
         if file_path.is_file():
             return FileResponse(file_path, media_type="image/png")
