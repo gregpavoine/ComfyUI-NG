@@ -281,11 +281,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         artifacts_dir = _get_artifacts_dir(app)
         prompt_text = job_req.prompt or "A cybernetic space station surrounded by glowing neon plasma rings"
-        seed_val = job_req.seed or 42
+        seed_val = job_req.seed or (int(time.time() * 1000) % 100000)
         steps_val = job_req.steps or 25
         model_val = job_req.model_name or "flux1-dev.safetensors"
 
-        # Generate real image artifact in worker runtime
+        # Generate real unique PNG image artifact in worker runtime
         artifact = generate_workflow_image(
             prompt=prompt_text,
             width=job_req.width or 1024,
@@ -314,7 +314,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "digest": artifact["digest"],
         }
         _IN_MEMORY_JOBS.insert(0, new_job)
-        return {"status": "ok", "message": "Job executed and artifact generated successfully", "job": new_job}
+        return {"status": "ok", "message": "Job executed and real artifact generated successfully", "job": new_job}
 
     @app.get("/api/v1/artifacts/{filename}")
     async def serve_artifact(filename: str) -> FileResponse:
@@ -322,11 +322,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         file_path = artifacts_dir / filename
         if file_path.is_file():
             return FileResponse(file_path, media_type="image/png")
-        
-        # Fallback to frontend static flux_sample.jpg if exists
-        frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
-        if (frontend_dist / "flux_sample.jpg").is_file():
-            return FileResponse(frontend_dist / "flux_sample.jpg", media_type="image/jpeg")
 
         raise HTTPException(status_code=404, detail="Artifact file not found")
 
