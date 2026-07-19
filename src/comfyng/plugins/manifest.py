@@ -22,6 +22,7 @@ from comfyng.core.ids import (
     validate_entrypoint,
     validate_node_id,
     validate_package_id,
+    validate_port_name,
     validate_semver,
 )
 from comfyng.core.json_values import (
@@ -197,9 +198,7 @@ def _resolve_schema_path(
     except (OSError, RuntimeError) as exc:
         raise ManifestValidationError(f"node schema does not exist: {value}") from exc
     if not resolved.is_relative_to(root):
-        raise PathContainmentError(
-            f"node schema path escapes catalogue root: {value}"
-        )
+        raise PathContainmentError(f"node schema path escapes catalogue root: {value}")
     if not resolved.is_file() or resolved.suffix.lower() != ".json":
         raise ManifestValidationError(f"node schema must be a JSON file: {value}")
     return resolved
@@ -275,6 +274,43 @@ class ResourceRequirements(Contract):
 
 
 @register_contract
+class NodeExecutionTraits(Contract):
+    TYPE_ID: ClassVar[str] = "comfyng.node-execution-traits"
+
+    pure: bool = False
+    deterministic: bool = False
+    cache_policy: str = "never"
+    fusion_kind: str | None = None
+    side_effects: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if type(self.pure) is not bool or type(self.deterministic) is not bool:
+            raise ValueError("execution pure/deterministic traits must be booleans")
+        if self.cache_policy not in ("never", "content"):
+            raise ValueError("execution cache_policy must be never or content")
+        if self.fusion_kind is not None:
+            validate_port_name(self.fusion_kind, field="execution.fusion_kind")
+        if not isinstance(self.side_effects, tuple):
+            raise ValueError("execution.side_effects must be a tuple")
+        for effect in self.side_effects:
+            validate_port_name(effect, field="execution side effect")
+        if len(set(self.side_effects)) != len(self.side_effects):
+            raise ValueError("execution.side_effects must be unique")
+        if self.pure and self.side_effects:
+            raise ValueError("pure execution cannot declare side effects")
+        if self.cache_policy == "content" and not (
+            self.pure and self.deterministic and not self.side_effects
+        ):
+            raise ValueError(
+                "content execution cache requires pure deterministic behavior"
+            )
+        if self.fusion_kind is not None and not (
+            self.pure and self.deterministic and not self.side_effects
+        ):
+            raise ValueError("execution fusion requires pure deterministic behavior")
+
+
+@register_contract
 class NodeDefinition(Contract):
     TYPE_ID: ClassVar[str] = "comfyng.node-definition"
 
@@ -286,6 +322,7 @@ class NodeDefinition(Contract):
     output_schema_path: Path
     input_schema: Mapping[str, Any]
     output_schema: Mapping[str, Any]
+    execution: NodeExecutionTraits = msgspec.field(default_factory=NodeExecutionTraits)
     category: str | None = None
     description: str | None = None
 
@@ -308,6 +345,8 @@ class NodeDefinition(Contract):
                 field,
                 freeze_json_value(value, path=f"$.{field}"),
             )
+        if not isinstance(self.execution, NodeExecutionTraits):
+            raise ValueError("node.execution must be NodeExecutionTraits")
         for field in ("category", "description"):
             value = getattr(self, field)
             if value is not None:
@@ -346,7 +385,9 @@ class PluginManifest(Contract):
             raise ValueError("manifest contains duplicate node id/version pairs")
         if not isinstance(self.source_path, Path) or not self.source_path.is_absolute():
             raise ValueError("manifest source_path must be absolute")
-        validate_safe_unicode_string(str(self.source_path), field="manifest source_path")
+        validate_safe_unicode_string(
+            str(self.source_path), field="manifest source_path"
+        )
         if not isinstance(self.permissions, Mapping):
             raise ValueError("manifest permissions must be a boolean mapping")
         frozen_permissions = freeze_json_value(
@@ -374,19 +415,27 @@ class PluginManifest(Contract):
             _string(self.signature, field="manifest.signature")
 
     @classmethod
-    def load(cls, path: Path | str, *, root: Path | str | None = None) -> PluginManifest:
+    def load(
+        cls, path: Path | str, *, root: Path | str | None = None
+    ) -> PluginManifest:
         raw_path = Path(path)
         try:
             source_path = raw_path.resolve(strict=True)
         except (OSError, RuntimeError) as exc:
-            raise ManifestValidationError(f"manifest does not exist: {raw_path}") from exc
+            raise ManifestValidationError(
+                f"manifest does not exist: {raw_path}"
+            ) from exc
         if not source_path.is_file() or source_path.name != "ng-node.toml":
-            raise ManifestValidationError("manifest path must name an ng-node.toml file")
+            raise ManifestValidationError(
+                "manifest path must name an ng-node.toml file"
+            )
         raw_root = Path(root) if root is not None else source_path.parent
         try:
             resolved_root = raw_root.resolve(strict=True)
         except (OSError, RuntimeError) as exc:
-            raise ManifestValidationError(f"catalogue root does not exist: {raw_root}") from exc
+            raise ManifestValidationError(
+                f"catalogue root does not exist: {raw_root}"
+            ) from exc
         if not resolved_root.is_dir():
             raise ManifestValidationError("catalogue root must be a directory")
         if not source_path.is_relative_to(resolved_root):
@@ -394,7 +443,9 @@ class PluginManifest(Contract):
         try:
             payload = tomllib.loads(source_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
-            raise ManifestValidationError(f"invalid TOML manifest {source_path}: {exc}") from exc
+            raise ManifestValidationError(
+                f"invalid TOML manifest {source_path}: {exc}"
+            ) from exc
         return _parse_manifest(payload, path=source_path, root=resolved_root)
 
 
@@ -407,7 +458,9 @@ def _parse_manifest(
     top = _table(
         payload,
         context="manifest",
-        required=frozenset(("schema_version", "package", "runtime", "resources", "nodes")),
+        required=frozenset(
+            ("schema_version", "package", "runtime", "resources", "nodes")
+        ),
         optional=frozenset(("permissions", "dependencies", "signature")),
     )
     schema_version = _integer(
@@ -472,9 +525,7 @@ def _parse_manifest(
     resources_raw = _table(
         top["resources"],
         context="resources",
-        required=frozenset(
-            ("gpu", "estimated_ram_mb", "estimated_vram_mb", "network")
-        ),
+        required=frozenset(("gpu", "estimated_ram_mb", "estimated_vram_mb", "network")),
     )
     try:
         resources = ResourceRequirements(
@@ -493,7 +544,9 @@ def _parse_manifest(
 
     nodes_raw = top["nodes"]
     if not isinstance(nodes_raw, list) or not nodes_raw:
-        raise ManifestValidationError("manifest.nodes must be a non-empty array of tables")
+        raise ManifestValidationError(
+            "manifest.nodes must be a non-empty array of tables"
+        )
     nodes: list[NodeDefinition] = []
     seen_nodes: set[tuple[str, str]] = set()
     for index, raw_node in enumerate(nodes_raw):
@@ -501,7 +554,7 @@ def _parse_manifest(
             raw_node,
             context=f"nodes[{index}]",
             required=frozenset(("id", "display_name", "input_schema", "output_schema")),
-            optional=frozenset(("version", "category", "description")),
+            optional=frozenset(("version", "category", "description", "execution")),
         )
         try:
             node_id = validate_node_id(node_raw["id"])
@@ -520,6 +573,39 @@ def _parse_manifest(
             output_path = _resolve_schema_path(
                 node_raw["output_schema"], manifest_path=path, root=root
             )
+            execution_value = node_raw.get("execution")
+            if execution_value is None:
+                execution = NodeExecutionTraits()
+            else:
+                execution_raw = _table(
+                    execution_value,
+                    context=f"nodes[{index}].execution",
+                    required=frozenset(("pure", "deterministic", "cache_policy")),
+                    optional=frozenset(("fusion_kind", "side_effects")),
+                )
+                side_effects = execution_raw.get("side_effects", [])
+                if not isinstance(side_effects, list) or any(
+                    not isinstance(item, str) for item in side_effects
+                ):
+                    raise ManifestValidationError(
+                        f"nodes[{index}].execution.side_effects must be an array of strings"
+                    )
+                execution = NodeExecutionTraits(
+                    pure=_boolean(
+                        execution_raw["pure"],
+                        field=f"nodes[{index}].execution.pure",
+                    ),
+                    deterministic=_boolean(
+                        execution_raw["deterministic"],
+                        field=f"nodes[{index}].execution.deterministic",
+                    ),
+                    cache_policy=_string(
+                        execution_raw["cache_policy"],
+                        field=f"nodes[{index}].execution.cache_policy",
+                    ),
+                    fusion_kind=execution_raw.get("fusion_kind"),
+                    side_effects=tuple(side_effects),
+                )
             nodes.append(
                 NodeDefinition(
                     id=node_id,
@@ -532,11 +618,12 @@ def _parse_manifest(
                     output_schema_path=output_path,
                     input_schema=load_json_schema(input_path),
                     output_schema=load_json_schema(output_path),
+                    execution=execution,
                     category=node_raw.get("category"),
                     description=node_raw.get("description"),
                 )
             )
-        except (ManifestValidationError, PathContainmentError):
+        except ManifestValidationError, PathContainmentError:
             raise
         except ValueError as exc:
             raise ManifestValidationError(f"invalid nodes[{index}]: {exc}") from exc

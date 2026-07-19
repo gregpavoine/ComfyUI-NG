@@ -117,6 +117,26 @@ def test_official_catalogue_exposes_exactly_40_display_names() -> None:
     assert all(node.output_schema["type"] == "object" for node in catalogue.nodes)
 
 
+def test_official_execution_traits_are_explicitly_conservative() -> None:
+    catalogue = NodeCatalogue.discover()
+
+    safe = catalogue.get("ng.latent.empty", "1.0.0").execution
+    assert safe.pure is True
+    assert safe.deterministic is True
+    assert safe.cache_policy == "content"
+
+    for node_id in (
+        "ng.control.switch",
+        "ng.image.load",
+        "ng.image.save",
+        "ng.system.cache_control",
+        "ng.model.load",
+    ):
+        traits = catalogue.get(node_id, "1.0.0").execution
+        assert traits.cache_policy == "never", node_id
+        assert traits.fusion_kind is None, node_id
+
+
 def test_official_schemas_declare_every_required_or_optional_port() -> None:
     catalogue = NodeCatalogue.discover()
 
@@ -131,7 +151,9 @@ def test_official_schemas_declare_every_required_or_optional_port() -> None:
         output_properties = node.output_schema["properties"]
         assert output_properties, node.id
         assert node.output_schema["additionalProperties"] is False, node.id
-        assert set(node.output_schema.get("required", ())) == set(output_properties), node.id
+        assert set(node.output_schema.get("required", ())) == set(output_properties), (
+            node.id
+        )
         assert all(definition for definition in output_properties.values()), node.id
 
 
@@ -139,15 +161,9 @@ def test_subgraph_input_type_ref_schema_matches_contract_grammar() -> None:
     node = NodeCatalogue.discover().get("ng.control.subgraph_input", "1.0.0")
     validator = Draft202012Validator(node.input_schema)
 
-    assert validator.is_valid(
-        {"name": "model_info", "type_ref": "NG_MODEL_INFO@1"}
-    )
-    assert not validator.is_valid(
-        {"name": "model", "type_ref": "NG__MODEL@1"}
-    )
-    assert not validator.is_valid(
-        {"name": "model", "type_ref": "NG_MODEL_@1"}
-    )
+    assert validator.is_valid({"name": "model_info", "type_ref": "NG_MODEL_INFO@1"})
+    assert not validator.is_valid({"name": "model", "type_ref": "NG__MODEL@1"})
+    assert not validator.is_valid({"name": "model", "type_ref": "NG_MODEL_@1"})
 
 
 def test_discovery_never_imports_a_runtime_entrypoint(

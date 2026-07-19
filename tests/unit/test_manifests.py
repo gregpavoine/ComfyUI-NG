@@ -8,7 +8,11 @@ import pytest
 
 from comfyng.core.enums import LoadPolicy, UnloadPolicy
 from comfyng.core.errors import ManifestValidationError, PathContainmentError
-from comfyng.plugins.manifest import PackageMetadata, PluginManifest
+from comfyng.plugins.manifest import (
+    NodeExecutionTraits,
+    PackageMetadata,
+    PluginManifest,
+)
 
 
 SCHEMA = {
@@ -87,10 +91,75 @@ def test_manifest_loads_schemas_and_round_trips_as_a_frozen_contract(
     assert manifest.runtime.entrypoint == "sentinel_runtime:create_runtime"
     assert manifest.nodes[0].version == "1.2.3"
     assert manifest.nodes[0].input_schema == SCHEMA
-    assert manifest.nodes[0].input_schema_path == (tmp_path / "schemas/input.json").resolve()
+    assert (
+        manifest.nodes[0].input_schema_path
+        == (tmp_path / "schemas/input.json").resolve()
+    )
     assert PluginManifest.from_json(manifest.to_json()) == manifest
     with pytest.raises(AttributeError):
         manifest.schema_version = 2  # type: ignore[misc]
+
+
+def test_node_execution_traits_default_to_no_cache_or_fusion() -> None:
+    traits = NodeExecutionTraits()
+
+    assert traits.pure is False
+    assert traits.deterministic is False
+    assert traits.cache_policy == "never"
+    assert traits.fusion_kind is None
+    assert traits.side_effects == ()
+
+
+def test_manifest_loads_explicit_safe_node_execution_traits(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(
+        tmp_path,
+        extra="""
+[nodes.execution]
+pure = true
+deterministic = true
+cache_policy = "content"
+fusion_kind = "pixel_transform"
+side_effects = []
+""",
+    )
+
+    node = PluginManifest.load(manifest_path, root=tmp_path).nodes[0]
+
+    assert node.execution == NodeExecutionTraits(
+        pure=True,
+        deterministic=True,
+        cache_policy="content",
+        fusion_kind="pixel_transform",
+        side_effects=(),
+    )
+
+
+@pytest.mark.parametrize(
+    "execution",
+    (
+        """
+[nodes.execution]
+pure = false
+deterministic = true
+cache_policy = "content"
+""",
+        """
+[nodes.execution]
+pure = true
+deterministic = true
+cache_policy = "content"
+side_effects = ["filesystem_write"]
+""",
+    ),
+)
+def test_manifest_rejects_unsafe_cache_execution_traits(
+    tmp_path: Path,
+    execution: str,
+) -> None:
+    manifest_path = _write_manifest(tmp_path, extra=execution)
+
+    with pytest.raises(ManifestValidationError, match="execution"):
+        PluginManifest.load(manifest_path, root=tmp_path)
 
 
 def test_manifest_direct_construction_canonicalizes_mutable_metadata(
@@ -261,9 +330,7 @@ def test_manifest_validates_the_full_draft_2020_12_metaschema(tmp_path: Path) ->
         {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "type": "object",
-            "properties": {
-                "guidance": {"type": "number", "minimum": "not-a-number"}
-            },
+            "properties": {"guidance": {"type": "number", "minimum": "not-a-number"}},
         },
     )
 
@@ -348,7 +415,9 @@ def test_manifest_rejects_schema_paths_outside_the_catalogue_root(
 def test_manifest_rejects_unknown_fields_and_malformed_entrypoints(
     tmp_path: Path,
 ) -> None:
-    malformed_entrypoint = _write_manifest(tmp_path / "one", entrypoint="not-an-entrypoint")
+    malformed_entrypoint = _write_manifest(
+        tmp_path / "one", entrypoint="not-an-entrypoint"
+    )
     unknown_field = _write_manifest(tmp_path / "two", extra='unknown = "value"\n')
 
     with pytest.raises(ManifestValidationError, match="entrypoint"):

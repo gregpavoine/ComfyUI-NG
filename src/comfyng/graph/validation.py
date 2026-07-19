@@ -16,12 +16,15 @@ from comfyng.plugins.manifest import NodeDefinition
 
 from .topology import CycleError, topological_layers
 from .types import Edge, Graph, TypeRef, TypeRegistry
+from .subgraphs import SUBGRAPH_CONSTRUCT_KINDS
 
 
 class GraphValidationContext(Protocol):
     catalogue: NodeCatalogue
     type_registry: TypeRegistry
+    subgraphs: Mapping[tuple[str, str] | str, Graph]
     max_loop_iterations: int
+    max_subgraph_depth: int
 
 
 @register_contract
@@ -220,6 +223,199 @@ def _sort_key(diagnostic: GraphDiagnostic) -> tuple[object, ...]:
         diagnostic.edge_index if diagnostic.edge_index is not None else -1,
         diagnostic.message,
     )
+
+
+def _subgraph_registry(
+    context: GraphValidationContext,
+) -> dict[tuple[str, str], Graph]:
+    registry: dict[tuple[str, str], Graph] = {}
+    for raw_key, graph in context.subgraphs.items():
+        key = (raw_key, "1.0.0") if isinstance(raw_key, str) else raw_key
+        if (
+            not isinstance(key, tuple)
+            or len(key) != 2
+            or not all(isinstance(item, str) for item in key)
+        ):
+            raise TypeError(
+                "subgraph keys must be type ids or (type id, version) pairs"
+            )
+        if not isinstance(graph, Graph):
+            raise TypeError("subgraph registry values must be Graph values")
+        registry[key] = graph
+    return registry
+
+
+def validate_graph_structure(
+    graph: Graph,
+    context: GraphValidationContext,
+) -> tuple[GraphDiagnostic, ...]:
+    """Validate raw parent/child structure before UUID-remapping expansion."""
+
+    if not isinstance(graph, Graph):
+        raise TypeError("graph must be a Graph")
+    registry = _subgraph_registry(context)
+    diagnostics: list[GraphDiagnostic] = []
+    graphs: tuple[tuple[str, Graph], ...] = (("root", graph),) + tuple(
+        (f"{key[0]}@{key[1]}", child) for key, child in sorted(registry.items())
+    )
+
+    for label, current in graphs:
+        counts = Counter(node.id for node in current.nodes)
+        for node_id, count in sorted(counts.items(), key=lambda item: str(item[0])):
+            if count > 1:
+                diagnostics.append(
+                    _diagnostic(
+                        "duplicate_node_id",
+                        f"{label}: node id {node_id} occurs {count} times",
+                        node_id=node_id,
+                    )
+                )
+        nodes: dict[UUID, Any] = {}
+        for node in current.nodes:
+            nodes.setdefault(node.id, node)
+
+        input_ports: dict[UUID, set[str]] = {}
+        output_ports: dict[UUID, set[str]] = {}
+        for node in sorted(current.nodes, key=lambda item: str(item.id)):
+            key = (node.type_id, node.type_version)
+            child = registry.get(key)
+            if child is not None:
+                input_ports[node.id] = set(child.inputs)
+                output_ports[node.id] = set(child.outputs)
+                construct_kind = node.metadata.get("construct_kind", "subgraph")
+                if (
+                    not isinstance(construct_kind, str)
+                    or construct_kind not in SUBGRAPH_CONSTRUCT_KINDS
+                ):
+                    diagnostics.append(
+                        _diagnostic(
+                            "invalid_subgraph_kind",
+                            f"{label}: construct_kind must be subgraph, function or macro",
+                            node_id=node.id,
+                        )
+                    )
+                for port in sorted(node.inputs):
+                    if port not in child.inputs:
+                        diagnostics.append(
+                            _diagnostic(
+                                "unknown_subgraph_input",
+                                f"{label}: subgraph call has no input port {port!r}",
+                                node_id=node.id,
+                                port=port,
+                            )
+                        )
+                continue
+            try:
+                definition = context.catalogue.get(node.type_id, node.type_version)
+            except UnknownNodeDefinitionError:
+                diagnostics.append(
+                    _diagnostic(
+                        "unknown_node_definition",
+                        f"unknown node definition {node.type_id}@{node.type_version}",
+                        node_id=node.id,
+                    )
+                )
+                continue
+            input_ports[node.id] = set(definition.input_schema.get("properties", {}))
+            output_ports[node.id] = set(definition.output_schema.get("properties", {}))
+
+        for edge_index, edge in enumerate(current.edges):
+            source = nodes.get(edge.source_node_id)
+            target = nodes.get(edge.target_node_id)
+            if source is None:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_source_node",
+                        f"{label}: edge source node {edge.source_node_id} does not exist",
+                        edge_index=edge_index,
+                        port=edge.source_port,
+                    )
+                )
+            if target is None:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_target_node",
+                        f"{label}: edge target node {edge.target_node_id} does not exist",
+                        edge_index=edge_index,
+                        port=edge.target_port,
+                    )
+                )
+            if label != "root" and (source is None or target is None):
+                diagnostics.append(
+                    _diagnostic(
+                        "invalid_subgraph_edge",
+                        f"{label}: subgraph edge references a missing node",
+                        edge_index=edge_index,
+                    )
+                )
+            if source is not None and edge.source_port not in output_ports.get(
+                source.id, set()
+            ):
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_source_port",
+                        f"{label}: node {source.id} has no output {edge.source_port!r}",
+                        node_id=source.id,
+                        edge_index=edge_index,
+                        port=edge.source_port,
+                    )
+                )
+            if target is not None and edge.target_port not in input_ports.get(
+                target.id, set()
+            ):
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_target_port",
+                        f"{label}: node {target.id} has no input {edge.target_port!r}",
+                        node_id=target.id,
+                        edge_index=edge_index,
+                        port=edge.target_port,
+                    )
+                )
+
+        for name, binding in sorted(current.inputs.items()):
+            node = nodes.get(binding.node_id)
+            if node is None:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_graph_input_node",
+                        f"{label}: graph input {name!r} references a missing node",
+                        node_id=binding.node_id,
+                        port=binding.port,
+                    )
+                )
+            elif binding.port not in input_ports.get(node.id, set()):
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_graph_input_port",
+                        f"{label}: graph input {name!r} references unknown port {binding.port!r}",
+                        node_id=node.id,
+                        port=binding.port,
+                    )
+                )
+
+        for name, binding in sorted(current.outputs.items()):
+            node = nodes.get(binding.node_id)
+            if node is None:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_graph_output_node",
+                        f"{label}: graph output {name!r} references a missing node",
+                        node_id=binding.node_id,
+                        port=binding.port,
+                    )
+                )
+            elif binding.port not in output_ports.get(node.id, set()):
+                diagnostics.append(
+                    _diagnostic(
+                        "missing_graph_output_port",
+                        f"{label}: graph output {name!r} references unknown port {binding.port!r}",
+                        node_id=node.id,
+                        port=binding.port,
+                    )
+                )
+
+    return tuple(sorted(set(diagnostics), key=_sort_key))
 
 
 def validate_graph(

@@ -3,6 +3,7 @@
 from .catalogue import NodeCatalogue
 from .manifest import (
     NodeDefinition,
+    NodeExecutionTraits,
     PackageMetadata,
     PluginManifest,
     ResourceRequirements,
@@ -13,6 +14,7 @@ from .manifest import (
 __all__ = [
     "NodeCatalogue",
     "NodeDefinition",
+    "NodeExecutionTraits",
     "PackageMetadata",
     "PluginManifest",
     "ResourceRequirements",

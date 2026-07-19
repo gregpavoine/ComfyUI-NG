@@ -141,6 +141,194 @@ def test_generated_directed_cycles_are_always_rejected(count: int) -> None:
     assert "cycle" in {item.code for item in captured.value.diagnostics}
 
 
+@st.composite
+def _invalid_graph_cases(draw: st.DrawFn) -> tuple[Graph, str]:
+    family = draw(
+        st.sampled_from(
+            (
+                "duplicate",
+                "missing_source",
+                "missing_target",
+                "missing_source_port",
+                "missing_target_port",
+                "unknown_version",
+                "conflicting_binding",
+            )
+        )
+    )
+    first_id = UUID(int=draw(st.integers(min_value=1, max_value=2**32)))
+    second_id = UUID(int=draw(st.integers(min_value=2**32 + 1, max_value=2**48)))
+    missing_id = UUID(int=draw(st.integers(min_value=2**48 + 1, max_value=2**64)))
+    first = NodeInstance(
+        id=first_id,
+        type_id=PROPERTY_NODE.id,
+        type_version=PROPERTY_NODE.version,
+    )
+    second = NodeInstance(
+        id=second_id,
+        type_id=PROPERTY_NODE.id,
+        type_version=PROPERTY_NODE.version,
+    )
+    nodes = (first, second)
+    edges: tuple[Edge, ...] = ()
+    expected = ""
+    if family == "duplicate":
+        nodes = (
+            first,
+            NodeInstance(
+                id=first.id,
+                type_id=PROPERTY_NODE.id,
+                type_version=PROPERTY_NODE.version,
+            ),
+        )
+        expected = "duplicate_node_id"
+    elif family == "missing_source":
+        edges = (Edge(missing_id, "value", second.id, "in_0"),)
+        expected = "missing_source_node"
+    elif family == "missing_target":
+        edges = (Edge(first.id, "value", missing_id, "in_0"),)
+        expected = "missing_target_node"
+    elif family == "missing_source_port":
+        edges = (Edge(first.id, "unknown", second.id, "in_0"),)
+        expected = "missing_source_port"
+    elif family == "missing_target_port":
+        edges = (Edge(first.id, "value", second.id, "unknown"),)
+        expected = "missing_target_port"
+    elif family == "unknown_version":
+        nodes = (
+            NodeInstance(
+                id=first.id,
+                type_id=PROPERTY_NODE.id,
+                type_version="9.9.9",
+            ),
+        )
+        expected = "unknown_node_definition"
+    else:
+        second = NodeInstance(
+            id=second.id,
+            type_id=PROPERTY_NODE.id,
+            type_version=PROPERTY_NODE.version,
+            inputs={"in_0": 5},
+        )
+        nodes = (first, second)
+        edges = (Edge(first.id, "value", second.id, "in_0"),)
+        expected = "multiple_input_bindings"
+    return Graph(id=UUID(int=90_000), version=1, nodes=nodes, edges=edges), expected
+
+
+@given(_invalid_graph_cases())
+@settings(max_examples=70, deadline=None)
+def test_generated_structural_and_binding_failures_are_structured(
+    case: tuple[Graph, str],
+) -> None:
+    graph, expected_code = case
+
+    with pytest.raises(GraphCompilationError) as captured:
+        GraphCompiler.compile(graph, PROPERTY_CONTEXT)
+
+    assert expected_code in {item.code for item in captured.value.diagnostics}
+
+
+@given(st.integers(min_value=2, max_value=24))
+@settings(max_examples=20, deadline=None)
+def test_generated_excessive_loop_bounds_are_rejected(item_count: int) -> None:
+    loop = NodeInstance(
+        id=UUID(int=1),
+        type_id="ng.control.for_each",
+        type_version="1.0.0",
+        inputs={"items": tuple(range(item_count))},
+    )
+    context = CompileContext(
+        catalogue=NodeCatalogue.discover(),
+        max_loop_iterations=item_count - 1,
+    )
+
+    with pytest.raises(GraphCompilationError) as captured:
+        GraphCompiler.compile(
+            Graph(id=UUID(int=91_000), version=1, nodes=(loop,), edges=()),
+            context,
+        )
+
+    assert "loop_bound_exceeded" in {item.code for item in captured.value.diagnostics}
+
+
+@given(st.integers(min_value=2, max_value=8))
+@settings(max_examples=7, deadline=None)
+def test_generated_subgraph_depth_overflow_is_structured(depth: int) -> None:
+    registry: dict[tuple[str, str], Graph] = {}
+    keys = tuple((f"ng.subgraph.level_{index}", "1.0.0") for index in range(depth))
+    leaf = NodeInstance(
+        id=UUID(int=10_000 + depth),
+        type_id=PROPERTY_NODE.id,
+        type_version=PROPERTY_NODE.version,
+    )
+    registry[keys[-1]] = Graph(
+        id=UUID(int=20_000 + depth),
+        version=1,
+        nodes=(leaf,),
+        edges=(),
+    )
+    for index in reversed(range(depth - 1)):
+        child_call = NodeInstance(
+            id=UUID(int=30_000 + index),
+            type_id=keys[index + 1][0],
+            type_version="1.0.0",
+        )
+        registry[keys[index]] = Graph(
+            id=UUID(int=40_000 + index),
+            version=1,
+            nodes=(child_call,),
+            edges=(),
+        )
+    root_call = NodeInstance(
+        id=UUID(int=50_000),
+        type_id=keys[0][0],
+        type_version="1.0.0",
+    )
+
+    with pytest.raises(GraphCompilationError) as captured:
+        GraphCompiler.compile(
+            Graph(id=UUID(int=92_000), version=1, nodes=(root_call,), edges=()),
+            CompileContext(
+                catalogue=PROPERTY_CONTEXT.catalogue,
+                subgraphs=registry,
+                max_subgraph_depth=depth - 1,
+            ),
+        )
+
+    assert "subgraph_depth_exceeded" in {
+        item.code for item in captured.value.diagnostics
+    }
+
+
+@given(st.integers(min_value=1, max_value=2**32))
+@settings(max_examples=12, deadline=None)
+def test_generated_recursive_subgraphs_are_rejected(call_value: int) -> None:
+    key = ("ng.subgraph.recursive", "1.0.0")
+    nested = NodeInstance(
+        id=UUID(int=call_value),
+        type_id=key[0],
+        type_version=key[1],
+    )
+    child = Graph(id=UUID(int=93_000), version=1, nodes=(nested,), edges=())
+    root = NodeInstance(
+        id=UUID(int=2**64 + call_value),
+        type_id=key[0],
+        type_version=key[1],
+    )
+
+    with pytest.raises(GraphCompilationError) as captured:
+        GraphCompiler.compile(
+            Graph(id=UUID(int=94_000), version=1, nodes=(root,), edges=()),
+            CompileContext(
+                catalogue=PROPERTY_CONTEXT.catalogue,
+                subgraphs={key: child},
+            ),
+        )
+
+    assert "recursive_subgraph" in {item.code for item in captured.value.diagnostics}
+
+
 @given(
     st.dictionaries(
         st.text(min_size=1, max_size=8),

@@ -29,6 +29,12 @@ category = "latents"
 input_schema = "../../schemas/nodes/latent_empty.input.json"
 output_schema = "../../schemas/nodes/latent_empty.output.json"
 
+[nodes.execution]
+pure = true
+deterministic = true
+cache_policy = "content"
+side_effects = []
+
 [[nodes]]
 id = "ng.latent.image_to_latent"
 display_name = "NG Image To Latent"

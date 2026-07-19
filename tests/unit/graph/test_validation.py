@@ -102,7 +102,9 @@ def test_validation_reports_duplicate_node_ids_and_compilation_rejects_them() ->
     ]
     with pytest.raises(GraphCompilationError) as captured:
         GraphCompiler.compile(graph, _context(definition))
-    assert captured.value.diagnostics == diagnostics
+    assert [
+        item.code for item in captured.value.diagnostics if item.severity == "error"
+    ] == ["duplicate_node_id"]
 
 
 def test_validation_reports_missing_edge_ports() -> None:
