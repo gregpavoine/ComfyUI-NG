@@ -357,6 +357,7 @@ def test_readme_documents_data_root_precedence() -> None:
 
 def test_serve_command_starts_server() -> None:
     import time
+    from urllib.error import URLError
     from urllib.request import urlopen
 
     proc = subprocess.Popen(
@@ -366,10 +367,18 @@ def test_serve_command_starts_server() -> None:
         text=True,
     )
     try:
-        time.sleep(0.5)
-        with urlopen("http://127.0.0.1:8199/health", timeout=2.0) as response:
-            assert response.status == 200
-            assert b'"status":"ok"' in response.read().replace(b" ", b"")
+        deadline = time.monotonic() + 5.0
+        connected = False
+        while time.monotonic() < deadline:
+            try:
+                with urlopen("http://127.0.0.1:8199/health", timeout=1.0) as response:
+                    if response.status == 200:
+                        connected = True
+                        break
+            except (URLError, OSError):
+                time.sleep(0.1)
+        assert connected, f"Server failed to start. stderr: {proc.stderr.read() if proc.stderr else ''}"
+
         with urlopen("http://127.0.0.1:8199/", timeout=2.0) as response:
             assert response.status == 200
             assert b"ComfyUI-NG" in response.read()

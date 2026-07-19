@@ -237,9 +237,9 @@ export const EditorSurface: React.FC = () => {
     setTimeout(() => {
       setIsSubmitting(false);
       setExecutionProgress(null);
-      if (res) {
-        setOutputImageUrl('/flux_sample.jpg');
-        setToastMessage(`Job ${res.id} completed! Output artifact generated.`);
+      if (res && res.image_url) {
+        setOutputImageUrl(res.image_url);
+        setToastMessage(`Job ${res.id} completed! Real PNG artifact generated in CAS storage.`);
         setTimeout(() => setToastMessage(null), 4000);
       }
     }, 1300);
@@ -328,7 +328,7 @@ export const EditorSurface: React.FC = () => {
             <Layers size={16} /> Nodes: {nodesOnCanvas.length} | Wires: {connections.length}
           </button>
           {outputImageUrl && (
-            <button className="btn btn-secondary" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }} onClick={() => setOutputImageUrl('/flux_sample.jpg')}>
+            <button className="btn btn-secondary" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }} onClick={() => setOutputImageUrl(outputImageUrl)}>
               <ImageIcon size={16} /> View Output Image
             </button>
           )}

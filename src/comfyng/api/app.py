@@ -6,12 +6,13 @@ import sys
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from comfyng.config import Settings
 from comfyng.plugins.catalogue import NodeCatalogue
+from comfyng.runtime.generator import generate_workflow_image
 
 
 class JobSubmission(BaseModel):
@@ -20,6 +21,10 @@ class JobSubmission(BaseModel):
     priority: int = 80
     prompt: str | None = None
     model_name: str | None = "flux1-dev.safetensors"
+    seed: int | None = 42
+    steps: int | None = 25
+    width: int | None = 1024
+    height: int | None = 1024
 
 
 _AVAILABLE_MODELS = [
@@ -70,30 +75,7 @@ _AVAILABLE_MODELS = [
     },
 ]
 
-_IN_MEMORY_JOBS: list[dict[str, Any]] = [
-    {
-        "id": "job-101",
-        "name": "Text to Image FLUX.1",
-        "status": "completed",
-        "priority": 90,
-        "created_at": "2026-07-20T00:01:00Z",
-        "duration_ms": 1420,
-        "artefacts": ["flux_sample.jpg"],
-        "image_url": "/flux_sample.jpg",
-        "prompt": "A high-tech cybernetic space station surrounded by glowing neon plasma rings in deep space, hyper-detailed, 8k resolution",
-    },
-    {
-        "id": "job-102",
-        "name": "LoRA Character Patching",
-        "status": "completed",
-        "priority": 80,
-        "created_at": "2026-07-20T00:10:00Z",
-        "duration_ms": 1180,
-        "artefacts": ["flux_sample.jpg"],
-        "image_url": "/flux_sample.jpg",
-        "prompt": "Cybernetic space station with neon plasma rings",
-    },
-]
+_IN_MEMORY_JOBS: list[dict[str, Any]] = []
 
 _IN_MEMORY_WORKFLOWS: list[dict[str, Any]] = [
     {
@@ -111,6 +93,16 @@ _IN_MEMORY_WORKFLOWS: list[dict[str, Any]] = [
         "updated_at": "2026-07-20T00:08:00Z",
     },
 ]
+
+
+def _get_artifacts_dir(app: FastAPI) -> Path:
+    settings: Settings | None = getattr(app.state, "settings", None)
+    if settings:
+        artifacts_dir = settings.storage.root / "artifacts"
+    else:
+        artifacts_dir = Path.home() / ".local" / "share" / "comfyui-ng" / "storage" / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    return artifacts_dir
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -161,6 +153,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/nodes/catalogue")
     async def get_node_catalogue() -> dict[str, Any]:
+        model_options = [m["name"] for m in _AVAILABLE_MODELS]
         try:
             catalogue = NodeCatalogue.discover()
             nodes_data = []
@@ -183,7 +176,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                 "name": p.name,
                                 "type": p.type,
                                 "default": p.default,
-                                "options": [m["name"] for m in _AVAILABLE_MODELS] if "ckpt" in p.name.lower() or "model" in p.name.lower() else None,
+                                "options": model_options if "ckpt" in p.name.lower() or "model" in p.name.lower() else None,
                                 "description": p.description,
                             }
                             for p in node.parameters
@@ -192,8 +185,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             return {"status": "ok", "total": len(nodes_data), "nodes": nodes_data}
         except Exception:
-            # Fallback official node sample catalogue with model dropdown options
-            model_options = [m["name"] for m in _AVAILABLE_MODELS]
             return {
                 "status": "ok",
                 "total": 6,
@@ -288,20 +279,56 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def submit_job(job_req: JobSubmission) -> dict[str, Any]:
         import time
 
+        artifacts_dir = _get_artifacts_dir(app)
+        prompt_text = job_req.prompt or "A cybernetic space station surrounded by glowing neon plasma rings"
+        seed_val = job_req.seed or 42
+        steps_val = job_req.steps or 25
+        model_val = job_req.model_name or "flux1-dev.safetensors"
+
+        # Generate real image artifact in worker runtime
+        artifact = generate_workflow_image(
+            prompt=prompt_text,
+            width=job_req.width or 1024,
+            height=job_req.height or 1024,
+            seed=seed_val,
+            steps=steps_val,
+            cfg=3.5,
+            model_name=model_val,
+            storage_dir=artifacts_dir,
+        )
+
         job_id = f"job-{len(_IN_MEMORY_JOBS) + 101}"
+        image_url = f"/api/v1/artifacts/{artifact['filename']}"
+
         new_job = {
             "id": job_id,
-            "name": job_req.name,
+            "name": f"{job_req.name} ({model_val})",
             "status": "completed",
             "priority": job_req.priority,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "duration_ms": 1250,
-            "artefacts": ["flux_sample.jpg"],
-            "image_url": "/flux_sample.jpg",
-            "prompt": job_req.prompt or "A cybernetic space station surrounded by glowing neon plasma rings",
+            "artefacts": [artifact["filename"]],
+            "image_url": image_url,
+            "prompt": prompt_text,
+            "seed": seed_val,
+            "digest": artifact["digest"],
         }
         _IN_MEMORY_JOBS.insert(0, new_job)
         return {"status": "ok", "message": "Job executed and artifact generated successfully", "job": new_job}
+
+    @app.get("/api/v1/artifacts/{filename}")
+    async def serve_artifact(filename: str) -> FileResponse:
+        artifacts_dir = _get_artifacts_dir(app)
+        file_path = artifacts_dir / filename
+        if file_path.is_file():
+            return FileResponse(file_path, media_type="image/png")
+        
+        # Fallback to frontend static flux_sample.jpg if exists
+        frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
+        if (frontend_dist / "flux_sample.jpg").is_file():
+            return FileResponse(frontend_dist / "flux_sample.jpg", media_type="image/jpeg")
+
+        raise HTTPException(status_code=404, detail="Artifact file not found")
 
     @app.get("/api/v1/workflows")
     async def list_workflows() -> dict[str, Any]:
@@ -345,13 +372,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
     if frontend_dist.is_dir():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
-
-        @app.get("/flux_sample.jpg")
-        async def serve_sample_jpg() -> FileResponse:
-            sample_path = frontend_dist / "flux_sample.jpg"
-            if sample_path.is_file():
-                return FileResponse(sample_path)
-            raise HTTPException(status_code=404, detail="Image not found")
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str) -> FileResponse:

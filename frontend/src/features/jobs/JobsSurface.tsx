@@ -119,7 +119,7 @@ export const JobsSurface: React.FC = () => {
 
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
               <img
-                src="/flux_sample.jpg"
+                src={selectedJob.image_url || '/flux_sample.jpg'}
                 alt={selectedJob.name}
                 style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)', border: '1px solid var(--border-subtle)' }}
               />
@@ -129,8 +129,8 @@ export const JobsSurface: React.FC = () => {
                 <div style={{ color: 'var(--text-muted)' }}>Prompt: {selectedJob.prompt || 'A high-tech cybernetic space station surrounded by glowing neon plasma rings in deep space'}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', alignItems: 'center' }}>
                   <span className="badge badge-emerald">Completed in {selectedJob.duration_ms} ms</span>
-                  <a href="/flux_sample.jpg" download="comfyng_job_artifact.jpg" className="btn btn-primary" style={{ padding: '0.4rem 0.8rem' }}>
-                    <Download size={16} /> Download High-Res Artifact
+                  <a href={selectedJob.image_url || '/flux_sample.jpg'} download="comfyng_job_artifact.png" className="btn btn-primary" style={{ padding: '0.4rem 0.8rem' }}>
+                    <Download size={16} /> Download PNG Artifact
                   </a>
                 </div>
               </div>
