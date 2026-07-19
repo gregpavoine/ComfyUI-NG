@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
 
 from comfyng.core.jobs import JobRecord
 from comfyng.scheduler.cancellation import CancellationToken

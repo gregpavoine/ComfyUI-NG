@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-import os
 from pathlib import Path
 import sys
 import time
@@ -11,7 +10,7 @@ from typing import Any
 import uuid
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -20,7 +19,7 @@ from comfyng.plugins.catalogue import NodeCatalogue
 
 # Import real comfyng core/scheduler/events classes
 from comfyng.core.cache import InMemoryNodeResultCache
-from comfyng.core.jobs import InMemoryJobRepository, JobStatus, JobSubmission, JobRecord
+from comfyng.core.jobs import InMemoryJobRepository, JobSubmission, JobRecord
 from comfyng.events.bus import EventBus
 from comfyng.events.journal import InMemoryEventJournal
 from comfyng.resources.broker import ResourceBroker

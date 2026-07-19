@@ -35,16 +35,8 @@ def generate_workflow_image(
         }
 
     rng = random.Random(seed)
-    
-    # Create base canvas with gradient based on prompt keywords
-    image = Image.new("RGB", (width, height), (9, 13, 22))
-    draw = ImageDraw.Draw(image)
 
-    # Color palette based on seed
-    hue1 = (seed * 37) % 360
-    hue2 = (seed * 73 + 120) % 360
-    
-    # Background cosmic nebula noise simulation
+    # Create base canvas with gradient based on prompt keywords
     for i in range(steps):
         cx = rng.randint(0, width)
         cy = rng.randint(0, height)

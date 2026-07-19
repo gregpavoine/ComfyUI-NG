@@ -92,6 +92,10 @@ def _console_script() -> Path:
     assert console_entries[0].load().__name__ == "main"
 
     script = Path(sys.executable).with_name("comfyng")
+    if not script.is_file():
+        import shutil
+
+        script = Path(shutil.which("comfyng") or "")
     assert script.is_file()
     return script
 
