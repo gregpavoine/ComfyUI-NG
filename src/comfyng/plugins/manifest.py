@@ -363,7 +363,7 @@ class PluginManifest(Contract):
     resources: ResourceRequirements
     nodes: tuple[NodeDefinition, ...]
     source_path: Path
-    permissions: Mapping[str, bool] = msgspec.field(default_factory=dict)
+    permissions: Mapping[str, Any] = msgspec.field(default_factory=dict)
     dependencies: tuple[str, ...] = ()
     signature: str | None = None
 
@@ -389,15 +389,29 @@ class PluginManifest(Contract):
             str(self.source_path), field="manifest source_path"
         )
         if not isinstance(self.permissions, Mapping):
-            raise ValueError("manifest permissions must be a boolean mapping")
+            raise ValueError("manifest permissions must be a mapping")
+        normalized_permissions: dict[str, bool | tuple[str, ...]] = {}
+        for name, value in self.permissions.items():
+            if not isinstance(name, str):
+                raise ValueError("manifest permission names must be strings")
+            validate_port_name(name, field="manifest permission name")
+            if type(value) is bool:
+                normalized_permissions[name] = value
+                continue
+            if isinstance(value, (list, tuple)) and all(
+                isinstance(item, str) and item for item in value
+            ):
+                normalized_permissions[name] = tuple(value)
+                continue
+            raise ValueError(
+                "manifest permission values must be booleans or string arrays"
+            )
         frozen_permissions = freeze_json_value(
-            self.permissions,
+            normalized_permissions,
             path="$.permissions",
         )
-        if not isinstance(frozen_permissions, FrozenDict) or any(
-            type(enabled) is not bool for enabled in frozen_permissions.values()
-        ):
-            raise ValueError("manifest permissions must be a boolean mapping")
+        if not isinstance(frozen_permissions, FrozenDict):
+            raise ValueError("manifest permissions must be a mapping")
         object.__setattr__(self, "permissions", frozen_permissions)
         if type(self.dependencies) not in (list, tuple):
             raise ValueError("manifest dependencies must be a list or tuple")
@@ -629,11 +643,19 @@ def _parse_manifest(
             raise ManifestValidationError(f"invalid nodes[{index}]: {exc}") from exc
 
     permissions_raw = top.get("permissions", {})
-    if not isinstance(permissions_raw, Mapping) or any(
-        not isinstance(name, str) or type(enabled) is not bool
-        for name, enabled in permissions_raw.items()
-    ):
-        raise ManifestValidationError("permissions must be a boolean TOML table")
+    if not isinstance(permissions_raw, Mapping):
+        raise ManifestValidationError("permissions must be a TOML table")
+    for name, value in permissions_raw.items():
+        if not isinstance(name, str) or not (
+            type(value) is bool
+            or (
+                isinstance(value, list)
+                and all(isinstance(item, str) and item for item in value)
+            )
+        ):
+            raise ManifestValidationError(
+                "permission values must be booleans or string arrays"
+            )
     dependencies_raw = top.get("dependencies", [])
     if not isinstance(dependencies_raw, list) or any(
         not isinstance(item, str) or not item for item in dependencies_raw

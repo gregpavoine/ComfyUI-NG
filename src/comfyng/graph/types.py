@@ -70,9 +70,7 @@ class PortTypeDefinition(Contract):
             freeze_json_value(self.schema, path="$.schema"),
         )
         if not isinstance(self.serialization_strategy, SerializationStrategy):
-            raise ValueError(
-                "serialization_strategy must be a SerializationStrategy"
-            )
+            raise ValueError("serialization_strategy must be a SerializationStrategy")
         if not isinstance(self.transfer_policy, TransferPolicy):
             raise ValueError("transfer_policy must be a TransferPolicy")
 
@@ -109,10 +107,7 @@ class TypeRegistry:
 
     @property
     def definitions(self) -> tuple[PortTypeDefinition, ...]:
-        return tuple(
-            self._definitions[key]
-            for key in sorted(self._definitions)
-        )
+        return tuple(self._definitions[key] for key in sorted(self._definitions))
 
 
 @register_contract
