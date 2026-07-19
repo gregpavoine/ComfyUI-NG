@@ -370,6 +370,9 @@ def test_serve_command_starts_server() -> None:
         with urlopen("http://127.0.0.1:8199/health", timeout=2.0) as response:
             assert response.status == 200
             assert b'"status":"ok"' in response.read().replace(b" ", b"")
+        with urlopen("http://127.0.0.1:8199/", timeout=2.0) as response:
+            assert response.status == 200
+            assert b"ComfyUI-NG" in response.read()
     finally:
         proc.terminate()
         proc.wait(timeout=2.0)
