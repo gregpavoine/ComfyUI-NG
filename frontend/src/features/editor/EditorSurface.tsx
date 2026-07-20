@@ -66,6 +66,11 @@ const TYPE_COLORS: Record<string, string> = {
 
 const portColor = (type: string): string => TYPE_COLORS[type.replace(/@\d+$/, '')] || '#6366f1';
 
+const displayLabel = (name: string): string =>
+  name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+
 const LEFT_MENU_ITEMS: { key: LeftMenu; label: string; icon: React.ReactNode; color: string }[] = [
   { key: 'queue', label: 'Job Queue', icon: <Clock size={16} />, color: '#f59e0b' },
   { key: 'images', label: 'Generated Images', icon: <ImageIcon size={16} />, color: '#10b981' },
@@ -778,7 +783,7 @@ export const EditorSurface: React.FC = () => {
                         onMouseDown={(e) => handlePortMouseDown(node.id, inp.name, inp.type, false, e)}
                         onMouseUp={(e) => handlePortMouseUp(node.id, inp.name, inp.type, false, e)}>
                         <div className="port-handle" style={{ background: portColorVal }} />
-                        <span style={{ fontWeight: 500 }}>{inp.name}</span>
+                        <span style={{ fontWeight: 500 }}>{displayLabel(inp.name)}</span>
                       </div>
                       <span style={{ fontSize: '0.7rem', color: portColorVal }}>{inp.type}</span>
                     </div>
@@ -792,7 +797,7 @@ export const EditorSurface: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'crosshair' }}
                         onMouseDown={(e) => handlePortMouseDown(node.id, out.name, out.type, true, e)}
                         onMouseUp={(e) => handlePortMouseUp(node.id, out.name, out.type, true, e)}>
-                        <span style={{ fontWeight: 500 }}>{out.name}</span>
+                        <span style={{ fontWeight: 500 }}>{displayLabel(out.name)}</span>
                         <div className="port-handle" style={{ background: portColorVal }} />
                       </div>
                     </div>
@@ -803,7 +808,7 @@ export const EditorSurface: React.FC = () => {
                     {node.def.parameters.map((param, idx) => (
                       <div key={idx} style={{ marginBottom: '0.4rem' }}>
                         <label style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
-                          {param.name}
+                          {displayLabel(param.name)}
                         </label>
                         {param.type === 'MODEL' || param.options ? (
                           <select className="search-input" style={{ width: '100%', fontSize: '0.7rem', padding: '0.25rem 0.4rem' }}
