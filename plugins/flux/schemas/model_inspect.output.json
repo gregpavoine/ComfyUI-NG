@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/model_inspect.output.json",
+  "title": "Model Inspect Output",
+  "type": "object",
+  "properties": {
+    "loaded": {"type": "boolean"},
+    "device": {"type": "string"},
+    "dtype": {"type": "string"},
+    "model_path": {"type": ["string", "null"]},
+    "components": {
+      "type": "object",
+      "properties": {
+        "transformer": {"type": "boolean"},
+        "text_encoder": {"type": "boolean"},
+        "tokenizer": {"type": "boolean"},
+        "vae": {"type": "boolean"},
+        "pipeline": {"type": "boolean"}
+      },
+      "required": ["transformer", "text_encoder", "tokenizer", "vae", "pipeline"],
+      "additionalProperties": false
+    },
+    "transformer_params": {"type": ["integer", "null"]}
+  },
+  "required": ["loaded", "device", "dtype", "model_path", "components"],
+  "additionalProperties": false
+}

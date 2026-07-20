@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/text_encoder_load.input.json",
+  "title": "Text Encoder Load Input",
+  "type": "object",
+  "properties": {
+    "model_path": {"type": "string"}
+  },
+  "required": ["model_path"],
+  "additionalProperties": false
+}

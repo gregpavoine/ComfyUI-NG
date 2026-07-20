@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/text_encoder_load.output.json",
+  "title": "Text Encoder Load Output",
+  "type": "object",
+  "properties": {
+    "status": {"type": "string"},
+    "device": {"type": "string"}
+  },
+  "required": ["status", "device"],
+  "additionalProperties": false
+}

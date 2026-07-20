@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/flux_load.input.json",
+  "title": "FLUX Model Load Input",
+  "type": "object",
+  "properties": {
+    "model_path": {
+      "type": "string",
+      "description": "Path to FLUX model directory (with transformer/, text_encoder/, vae/ subdirs or .safetensors files)"
+    },
+    "compile": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable torch.compile for faster inference (requires PyTorch 2.0+)"
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["bfloat16", "float16", "float32"],
+      "default": "bfloat16",
+      "description": "Compute dtype"
+    }
+  },
+  "required": ["model_path"],
+  "additionalProperties": false
+}

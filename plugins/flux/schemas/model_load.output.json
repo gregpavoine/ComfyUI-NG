@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/flux_load.output.json",
+  "title": "FLUX Model Load Output",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["loaded", "already_loaded"]
+    },
+    "device": {"type": "string"},
+    "dtype": {"type": "string"},
+    "model_path": {"type": "string"}
+  },
+  "required": ["status", "device", "dtype"],
+  "additionalProperties": false
+}

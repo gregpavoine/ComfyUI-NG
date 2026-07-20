@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/vae_load.input.json",
+  "title": "VAE Load Input",
+  "type": "object",
+  "properties": {
+    "model_path": {
+      "type": "string",
+      "description": "Path to VAE directory"
+    }
+  },
+  "required": ["model_path"],
+  "additionalProperties": false
+}

@@ -1,0 +1,72 @@
+schema_version = 1
+
+[package]
+id = "org.comfyng.flux"
+name = "ComfyUI-NG FLUX Runtime"
+version = "1.0.0"
+publisher = "ComfyUI-NG"
+license = "GPL-3.0-or-later"
+
+[runtime]
+language = "python"
+python = ">=3.14"
+entrypoint = "comfyng_flux.runtime:create_runtime"
+isolation = "gpu_model_worker"
+load_policy = "KEEP_WARM"
+unload_policy = "UNLOAD_ON_MEMORY_PRESSURE"
+idle_timeout_seconds = 300
+
+[resources]
+gpu = "required"
+estimated_ram_mb = 8192
+estimated_vram_mb = 12288
+network = false
+
+[[nodes]]
+id = "ng.model.flux.load"
+display_name = "FLUX Model Loader"
+category = "models"
+input_schema = "schemas/model_load.input.json"
+output_schema = "schemas/model_load.output.json"
+
+[[nodes]]
+id = "ng.text_encoder.load"
+display_name = "FLUX Text Encoder Loader"
+category = "models"
+input_schema = "schemas/text_encoder_load.input.json"
+output_schema = "schemas/text_encoder_load.output.json"
+
+[[nodes]]
+id = "ng.vae.load"
+display_name = "FLUX VAE Loader"
+category = "models"
+input_schema = "schemas/vae_load.input.json"
+output_schema = "schemas/vae_load.output.json"
+
+[[nodes]]
+id = "ng.model.inspect"
+display_name = "FLUX Model Inspector"
+category = "models"
+input_schema = "schemas/model_inspect.input.json"
+output_schema = "schemas/model_inspect.output.json"
+
+[[nodes]]
+id = "ng.model.unload"
+display_name = "FLUX Model Unload"
+category = "models"
+input_schema = "schemas/model_unload.input.json"
+output_schema = "schemas/model_unload.output.json"
+
+[[nodes]]
+id = "ng.sample.flux"
+display_name = "FLUX Sampler"
+category = "sampling"
+input_schema = "schemas/sample_flux.input.json"
+output_schema = "schemas/sample_flux.output.json"
+
+[[nodes]]
+id = "ng.sample.flux_advanced"
+display_name = "FLUX Sampler (Advanced)"
+category = "sampling"
+input_schema = "schemas/sample_flux.input.json"
+output_schema = "schemas/sample_flux.output.json"

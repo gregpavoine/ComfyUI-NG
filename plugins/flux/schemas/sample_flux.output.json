@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/sample_flux.output.json",
+  "title": "FLUX Sample Output",
+  "type": "object",
+  "properties": {
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {"type": "integer"},
+          "width": {"type": "integer"},
+          "height": {"type": "integer"},
+          "digest": {"type": "string"},
+          "bytes": {"type": "string", "contentEncoding": "base64"}
+        },
+        "required": ["index", "width", "height", "digest", "bytes"],
+        "additionalProperties": false
+      }
+    },
+    "seed": {"type": "integer"}
+  },
+  "required": ["images", "seed"],
+  "additionalProperties": false
+}

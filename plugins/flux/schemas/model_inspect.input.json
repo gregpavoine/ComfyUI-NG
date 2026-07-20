@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/model_inspect.input.json",
+  "title": "Model Inspect Input",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

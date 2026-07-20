@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://comfyui-ng.org/schemas/nodes/model_unload.output.json",
+  "title": "Model Unload Output",
+  "type": "object",
+  "properties": {
+    "released": {"type": "integer"}
+  },
+  "required": ["released"],
+  "additionalProperties": false
+}
