@@ -37,7 +37,7 @@ class JobSubmissionDTO(BaseModel):
     name: str = "Generation Job"
     priority: int = 80
     prompt: str | None = None
-    model_name: str | None = "flux1-dev.safetensors"
+    model_name: str | None = None
     seed: int | None = 42
     steps: int | None = 25
     width: int | None = 1024
@@ -46,53 +46,7 @@ class JobSubmissionDTO(BaseModel):
     connections: list[dict[str, Any]] | None = None
 
 
-_AVAILABLE_MODELS = [
-    {
-        "name": "flux1-dev.safetensors",
-        "display_name": "FLUX.1 DEV (Guidance Distilled)",
-        "architecture": "FLUX.1 DEV",
-        "size_gb": 23.8,
-        "format": "safetensors",
-        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "status": "ready",
-    },
-    {
-        "name": "flux1-schnell.safetensors",
-        "display_name": "FLUX.1 Schnell (4-Step Fast)",
-        "architecture": "FLUX.1 Schnell",
-        "size_gb": 23.8,
-        "format": "safetensors",
-        "digest": "sha256:fa234bc567de1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "status": "ready",
-    },
-    {
-        "name": "qwen2-vl-7b-image.safetensors",
-        "display_name": "Qwen2-VL Image Transformer",
-        "architecture": "Qwen-Image",
-        "size_gb": 14.2,
-        "format": "safetensors",
-        "digest": "sha256:d7a8fbb307d7809469ca9ab5d0443eeed806785db10565b12a373a0498b0c0ba",
-        "status": "ready",
-    },
-    {
-        "name": "z-image-v1-turbo.safetensors",
-        "display_name": "Z-Image High Resolution Turbo",
-        "architecture": "Z-Image",
-        "size_gb": 11.5,
-        "format": "safetensors",
-        "digest": "sha256:b8c9d01234ef56789a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
-        "status": "ready",
-    },
-    {
-        "name": "krea-v2-sdxl-refiner.safetensors",
-        "display_name": "Krea 2.0 Modern Refiner",
-        "architecture": "Krea 2.0",
-        "size_gb": 6.8,
-        "format": "safetensors",
-        "digest": "sha256:c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0",
-        "status": "ready",
-    },
-]
+_AVAILABLE_MODELS: list[dict[str, Any]] = []
 
 def _scan_files_in_dirs(base_dirs: list[Path], extensions: tuple[str, ...]) -> list[str]:
     files = []
@@ -166,13 +120,6 @@ def _get_real_models() -> list[dict[str, Any]]:
             
     models.sort(key=lambda m: m["display_name"])
     
-    # Merge with default available models to make sure standard options are always present
-    seen_names = {m["name"] for m in models}
-    for m in _AVAILABLE_MODELS:
-        if m["name"] not in seen_names:
-            models.append(m)
-            seen_names.add(m["name"])
-            
     return models
 
 _IN_MEMORY_WORKFLOWS: list[dict[str, Any]] = [
@@ -393,7 +340,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             {
                                 "name": "ckpt_name",
                                 "type": "STRING",
-                                "default": "flux1-dev.safetensors",
+                                "default": checkpoints[0] if checkpoints else None,
                                 "options": checkpoints,
                             }
                         ],

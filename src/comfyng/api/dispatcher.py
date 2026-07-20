@@ -149,7 +149,6 @@ class WorkflowDispatcher:
                     home / "ComfyUI-NG" / "models",
                     home / "ComfyUI" / "models" / "diffusion_models",
                     home / "ComfyUI" / "models" / "checkpoints",
-                    home / ".cache" / "huggingface" / "hub",
                 ]
             )
         else:
@@ -183,9 +182,6 @@ class WorkflowDispatcher:
                     f"Ambiguous {kind} name {value!r}; use an absolute path. Matches: "
                     + ", ".join(str(item) for item in matches[:8])
                 )
-        # A HF repository id is valid for the runtime only when explicitly allowed.
-        if "/" in value and not value.endswith((".safetensors", ".ckpt", ".pt")):
-            return value
         searched = ", ".join(str(path) for path in cls._search_roots(kind)) or "(none)"
         raise NativeRuntimeError(f"{kind.capitalize()} {value!r} not found. Searched: {searched}")
 

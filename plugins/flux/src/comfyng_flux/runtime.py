@@ -24,7 +24,6 @@ class ArchitectureProfile:
     family: str
     pipeline_class: str
     transformer_class: str
-    default_component_source: str | None
     default_steps: int
     default_guidance: float
     component_env: str
@@ -38,7 +37,6 @@ PROFILES: tuple[ArchitectureProfile, ...] = (
         family="krea2_turbo",
         pipeline_class="Krea2Pipeline",
         transformer_class="Krea2Transformer2DModel",
-        default_component_source=None,
         default_steps=8,
         default_guidance=0.0,
         component_env="COMFYNG_KREA2_COMPONENTS",
@@ -50,7 +48,6 @@ PROFILES: tuple[ArchitectureProfile, ...] = (
         family="krea2",
         pipeline_class="Krea2Pipeline",
         transformer_class="Krea2Transformer2DModel",
-        default_component_source=None,
         default_steps=28,
         default_guidance=4.5,
         component_env="COMFYNG_KREA2_COMPONENTS",
@@ -61,7 +58,6 @@ PROFILES: tuple[ArchitectureProfile, ...] = (
         family="z_image_turbo",
         pipeline_class="ZImagePipeline",
         transformer_class="ZImageTransformer2DModel",
-        default_component_source="Z-a-o/Z-Image-Turbo",
         default_steps=8,
         default_guidance=0.0,
         component_env="COMFYNG_ZIMAGE_TURBO_COMPONENTS",
@@ -73,7 +69,6 @@ PROFILES: tuple[ArchitectureProfile, ...] = (
         family="z_image",
         pipeline_class="ZImagePipeline",
         transformer_class="ZImageTransformer2DModel",
-        default_component_source="Z-a-o/Z-Image",
         default_steps=50,
         default_guidance=5.0,
         component_env="COMFYNG_ZIMAGE_COMPONENTS",
@@ -84,7 +79,6 @@ PROFILES: tuple[ArchitectureProfile, ...] = (
         family="flux_schnell",
         pipeline_class="FluxPipeline",
         transformer_class="FluxTransformer2DModel",
-        default_component_source="black-forest-labs/FLUX.1-schnell",
         default_steps=4,
         default_guidance=0.0,
         component_env="COMFYNG_FLUX_SCHNELL_COMPONENTS",
@@ -96,7 +90,6 @@ PROFILES: tuple[ArchitectureProfile, ...] = (
         family="flux",
         pipeline_class="FluxPipeline",
         transformer_class="FluxTransformer2DModel",
-        default_component_source="black-forest-labs/FLUX.1-dev",
         default_steps=28,
         default_guidance=3.5,
         component_env="COMFYNG_FLUX_COMPONENTS",
@@ -191,36 +184,55 @@ class ModernImageRuntime:
                 + ", ".join(profile.family for profile in PROFILES)
             )
 
-        name = path.name.lower().replace("-", "_")
-        keys = cls._safetensor_keys(path)
+        # Use the complete path: users commonly sort models under folders such as
+        # Krea 2/, ZImageTurbo/ and Flux/. The former implementation only inspected
+        # path.name and therefore missed that reliable local information.
+        path_blob = str(path).lower().replace("-", "_").replace(" ", "_")
+        keys = cls._safetensor_keys(path, limit=4096)
         key_blob = "\n".join(keys).lower()
 
-        # Strong filename combinations first, then tensor signatures.
-        if "krea" in name or "k2" in name:
-            return PROFILES[0] if any(x in name for x in ("turbo", "tdm")) else PROFILES[1]
-        if any(x in name for x in ("zimage", "z_image", "zpop")):
-            return PROFILES[2] if "turbo" in name else PROFILES[3]
-        if "flux" in name:
-            return PROFILES[4] if "schnell" in name else PROFILES[5]
+        try:
+            from safetensors import safe_open
+            with safe_open(path, framework="pt", device="cpu") as handle:
+                metadata = handle.metadata() or {}
+        except Exception:
+            metadata = {}
+        metadata_blob = json.dumps(metadata, ensure_ascii=False).lower()
+        evidence = "\n".join((path_blob, key_blob, metadata_blob))
 
-        for profile in PROFILES:
-            matches = sum(marker in key_blob for marker in profile.tensor_markers)
-            if matches >= 2:
-                return profile
+        if any(x in evidence for x in ("krea2", "krea_2", "krea-2")):
+            return PROFILES[0] if any(x in evidence for x in ("turbo", "tdm", "distill")) else PROFILES[1]
+        if any(x in evidence for x in ("zimage", "z_image", "z-image", "z_image_turbo")):
+            return PROFILES[2] if any(x in evidence for x in ("turbo", "distill")) else PROFILES[3]
+        if "flux" in evidence or sum(x in key_blob for x in ("double_blocks", "single_blocks", "img_in")) >= 2:
+            return PROFILES[4] if any(x in evidence for x in ("schnell", "turbo", "distill")) else PROFILES[5]
+
+        # Architecture-specific tensor signatures. Krea2 and Z-Image community
+        # checkpoints often omit metadata, so use multiple independent markers.
+        if sum(x in key_blob for x in ("text_fuser", "text_fusion", "num_text_layers")) >= 2:
+            return PROFILES[0] if any(x in evidence for x in ("turbo", "tdm", "distill")) else PROFILES[1]
+        if sum(x in key_blob for x in ("cap_embedder", "context_refiner", "noise_refiner", "x_embedder")) >= 2:
+            return PROFILES[2] if any(x in evidence for x in ("turbo", "distill")) else PROFILES[3]
+
         raise NativeImageRuntimeError(
-            "Unable to detect the architecture of the diffusion model. "
-            "Pass model_family explicitly (flux, flux_schnell, z_image, "
-            "z_image_turbo, krea2 or krea2_turbo)."
+            f"Unable to detect architecture for local model {path}. "
+            "Select model_family explicitly in the workflow. No network fallback is permitted."
         )
 
     @staticmethod
-    def _latest_hf_snapshot(repo_id: str) -> Path | None:
-        cache_root = Path(os.environ.get("HF_HUB_CACHE", Path.home() / ".cache/huggingface/hub"))
-        repo_dir = cache_root / ("models--" + repo_id.replace("/", "--")) / "snapshots"
-        if not repo_dir.is_dir():
-            return None
-        snapshots = sorted((p for p in repo_dir.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)
-        return snapshots[0] if snapshots else None
+    def _component_roots() -> tuple[Path, ...]:
+        roots: list[Path] = []
+        for value in os.environ.get("COMFYNG_COMPONENT_PATHS", "").split(os.pathsep):
+            if value:
+                roots.append(Path(value).expanduser())
+        home = Path.home()
+        roots.extend((
+            home / "ComfyUI-NG" / "models" / "components",
+            home / "ComfyUI-NG" / "models",
+            home / "ComfyUI" / "models" / "components",
+            home / "ComfyUI" / "models",
+        ))
+        return tuple(dict.fromkeys(path.resolve() for path in roots if path.exists()))
 
     @classmethod
     def _resolve_component_source(
@@ -228,41 +240,53 @@ class ModernImageRuntime:
         profile: ArchitectureProfile,
         payload: Mapping[str, Any],
         *,
-        local_files_only: bool,
+        local_files_only: bool = True,
     ) -> str:
+        # Strictly local by design. Repository identifiers and cache downloads are
+        # deliberately rejected: NG must consume the user's existing model tree.
         explicit = str(payload.get("component_source") or payload.get("components_path") or "").strip()
         env_value = os.environ.get(profile.component_env, "").strip()
         source = explicit or env_value
-
         if source:
             path = Path(source).expanduser()
-            if path.exists():
-                path = path.resolve()
-                if not (path / "model_index.json").is_file():
-                    raise NativeImageRuntimeError(
-                        f"Component bundle {path} has no model_index.json"
-                    )
-                return str(path)
-            if local_files_only:
-                cached = cls._latest_hf_snapshot(source)
-                if cached is not None:
-                    return str(cached)
-                raise NativeImageRuntimeError(
-                    f"Component source {source!r} is not local or cached"
-                )
-            return source
+            if not path.exists():
+                raise NativeImageRuntimeError(f"Local component path does not exist: {path}")
+            path = path.resolve()
+            if not (path / "model_index.json").is_file():
+                raise NativeImageRuntimeError(f"Local component directory {path} has no model_index.json")
+            return str(path)
 
-        if profile.default_component_source:
-            cached = cls._latest_hf_snapshot(profile.default_component_source)
-            if cached is not None:
-                return str(cached)
-            if not local_files_only:
-                return profile.default_component_source
+        expected = profile.pipeline_class.lower()
+        family_tokens = tuple(token for token in profile.family.split("_") if token)
+        candidates: list[tuple[int, Path]] = []
+        for root in cls._component_roots():
+            try:
+                index_files = root.rglob("model_index.json")
+                for index_file in index_files:
+                    try:
+                        cfg = json.loads(index_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+                    class_name = str(cfg.get("_class_name") or "").lower()
+                    if class_name != expected:
+                        continue
+                    blob = str(index_file.parent).lower().replace("-", "_")
+                    score = sum(token in blob for token in family_tokens)
+                    if profile.distilled and any(x in blob for x in ("turbo", "schnell", "distill")):
+                        score += 3
+                    candidates.append((score, index_file.parent.resolve()))
+            except (OSError, PermissionError):
+                continue
+        if candidates:
+            candidates.sort(key=lambda item: (item[0], str(item[1])), reverse=True)
+            return str(candidates[0][1])
 
+        searched = ", ".join(str(p) for p in cls._component_roots()) or "(none)"
         raise NativeImageRuntimeError(
-            f"The transformer was detected as {profile.family}, but its companion components "
-            f"are unavailable. Set {profile.component_env} to a local Diffusers component bundle "
-            "containing model_index.json, tokenizer(s), text encoder(s), VAE and scheduler."
+            f"Local components for {profile.family} were not found. Searched: {searched}. "
+            f"Place a local {profile.pipeline_class} component directory under "
+            "ComfyUI-NG/models/components, or set " + profile.component_env + ". "
+            "Network downloads are disabled."
         )
 
     @staticmethod
@@ -283,31 +307,50 @@ class ModernImageRuntime:
         model_path: Path,
         component_source: str,
         dtype: torch.dtype,
-        local_files_only: bool,
+        local_files_only: bool = True,
     ) -> Any:
         loader = getattr(transformer_class, "from_single_file", None)
         if not callable(loader):
             raise NativeImageRuntimeError(
-                f"{transformer_class.__name__} does not support from_single_file() in the installed diffusers version"
+                f"{transformer_class.__name__} does not support from_single_file()"
             )
-        attempts = (
-            {"config": component_source, "subfolder": "transformer"},
-            {"config": component_source},
-        )
+
+        component_dir = Path(component_source)
+        local_configs = [
+            model_path.with_suffix(".json"),
+            model_path.parent / "config.json",
+            component_dir / "transformer" / "config.json",
+            component_dir / "config.json",
+        ]
+        attempts: list[dict[str, Any]] = [{}]
+        for config in local_configs:
+            if config.is_file():
+                attempts.append({"config": str(config)})
+        if (component_dir / "transformer").is_dir():
+            attempts.append({"config": str(component_dir), "subfolder": "transformer"})
+
         errors: list[str] = []
-        for extra in attempts:
-            try:
-                return loader(
-                    str(model_path),
-                    torch_dtype=dtype,
-                    local_files_only=local_files_only,
-                    **extra,
-                )
-            except Exception as exc:
-                errors.append(f"{extra}: {type(exc).__name__}: {exc}")
+        previous_offline = os.environ.get("HF_HUB_OFFLINE")
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        try:
+            for extra in attempts:
+                try:
+                    return loader(
+                        str(model_path),
+                        torch_dtype=dtype,
+                        local_files_only=True,
+                        **extra,
+                    )
+                except Exception as exc:
+                    errors.append(f"{extra or {'config': 'embedded'}}: {type(exc).__name__}: {exc}")
+        finally:
+            if previous_offline is None:
+                os.environ.pop("HF_HUB_OFFLINE", None)
+            else:
+                os.environ["HF_HUB_OFFLINE"] = previous_offline
         raise NativeImageRuntimeError(
-            f"Failed to load {model_path.name} as {transformer_class.__name__}. "
-            + " | ".join(errors)
+            f"Failed to load local transformer {model_path.name} as {transformer_class.__name__}. "
+            "No network request was attempted. Local attempts: " + " | ".join(errors)
         )
 
     def execute(self, operation: str, payload: Mapping[str, Any], cancellation: threading.Event) -> Any:
@@ -338,7 +381,7 @@ class ModernImageRuntime:
         if not path.exists():
             raise FileNotFoundError(f"Diffusion model does not exist: {path}")
 
-        local_files_only = bool(payload.get("local_files_only", True))
+        local_files_only = True
         device, dtype = self._resolve_device(str(payload.get("device", "auto")))
 
         if path.is_dir():
@@ -376,7 +419,7 @@ class ModernImageRuntime:
             kwargs: dict[str, Any] = {
                 "transformer": transformer,
                 "torch_dtype": dtype,
-                "local_files_only": local_files_only,
+                "local_files_only": True,
             }
             if profile.family.startswith("krea2"):
                 kwargs["is_distilled"] = profile.distilled

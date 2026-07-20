@@ -93,7 +93,7 @@ export const EditorSurface: React.FC = () => {
         const saveImg = defs.find((d) => d.name === 'SaveImage') || defs[5] || defs[0];
 
         const initialNodes: CanvasNode[] = [
-          { id: 'node-1', def: ckpt, x: 40, y: 80, params: { ckpt_name: 'flux1-dev.safetensors' } },
+          { id: 'node-1', def: ckpt, x: 40, y: 80, params: { ckpt_name: models[0]?.name || '' } },
           { id: 'node-2', def: clip, x: 340, y: 80, params: { text: 'A high-tech cybernetic space station surrounded by glowing neon plasma rings in deep space, hyper-detailed, 8k' } },
           { id: 'node-3', def: latent, x: 340, y: 280, params: { width: 1024, height: 1024, batch_size: 1 } },
           { id: 'node-4', def: sampler, x: 680, y: 120, params: { steps: 25, cfg: 3.5, seed: 4242, sampler_name: 'euler' } },
@@ -238,7 +238,10 @@ export const EditorSurface: React.FC = () => {
     const samplerNode = nodesOnCanvas.find((n) => n.def.name === 'KSampler');
 
     const promptText = clipNode?.params?.text || 'A high-tech cybernetic space station in deep space';
-    const modelName = loadNode?.params?.ckpt_name || 'flux1-dev.safetensors';
+    const modelName = loadNode?.params?.ckpt_name || availableModels[0]?.name || '';
+    if (!modelName) {
+      throw new Error('Aucun modèle réel trouvé dans models/diffusion_models ou models/checkpoints');
+    }
     const seedVal = samplerNode?.params?.seed ? Number(samplerNode.params.seed) : 42;
     const stepsVal = samplerNode?.params?.steps ? Number(samplerNode.params.steps) : 25;
     const widthVal = latentNode?.params?.width ? Number(latentNode.params.width) : 1024;
