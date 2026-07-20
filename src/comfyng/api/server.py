@@ -11,6 +11,13 @@ from fastapi import FastAPI
 logger = logging.getLogger("comfyng.api.server")
 
 
+async def _serve_async(app: FastAPI, host: str, port: int) -> None:
+    bridge = ASGIHTTPBridge(app, host, port)
+    server = await asyncio.start_server(bridge.handle_client, host, port)
+    async with server:
+        await server.serve_forever()
+
+
 class ASGIHTTPBridge:
     """Lightweight pure-Python asyncio HTTP/1.1 to ASGI 3.0 bridge."""
 
@@ -135,13 +142,6 @@ class ASGIHTTPBridge:
                 await writer.wait_closed()
             except Exception:
                 pass
-
-
-async def _serve_async(app: FastAPI, host: str, port: int) -> None:
-    bridge = ASGIHTTPBridge(app, host, port)
-    server = await asyncio.start_server(bridge.handle_client, host, port)
-    async with server:
-        await server.serve_forever()
 
 
 def run_server(app: FastAPI, host: str = "127.0.0.1", port: int = 8188, verbose: bool = False) -> None:
