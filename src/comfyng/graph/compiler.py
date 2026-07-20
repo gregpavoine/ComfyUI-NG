@@ -331,7 +331,7 @@ class ExecutionStep(Contract):
             value = getattr(self, field_name)
             if not isinstance(value, Mapping):
                 raise ValueError(f"{field_name} must be a JSON object")
-            object.__setattr__(
+            setattr(
                 self,
                 field_name,
                 freeze_json_value(value, path=f"$.{field_name}"),
@@ -363,7 +363,7 @@ class ExecutionStep(Contract):
             raise ValueError("member_node_ids must be unique")
         if members[0] != self.node_id:
             raise ValueError("node_id must be the first member_node_id")
-        object.__setattr__(self, "member_node_ids", members)
+        self.member_node_ids = members
         member_set = set(members)
         if member_set.intersection(self.dependencies):
             raise ValueError("dependencies cannot contain fused member nodes")
@@ -629,7 +629,7 @@ class ExecutionPlan(Contract):
             frozen_outputs[name] = binding
         if frozen_outputs != dict(self.expanded_graph.outputs):
             raise ValueError("plan outputs must match expanded_graph outputs")
-        object.__setattr__(self, "outputs", FrozenDict(frozen_outputs))
+        self.outputs = FrozenDict(frozen_outputs)
 
     @property
     def valid(self) -> bool:

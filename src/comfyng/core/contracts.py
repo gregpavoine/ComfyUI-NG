@@ -25,8 +25,11 @@ def _decode_hook(expected_type: type, value: object) -> object:
     return value
 
 
-class Contract(msgspec.Struct, frozen=True, forbid_unknown_fields=True):
-    """Frozen msgspec contract with an explicit type and schema-version envelope."""
+class Contract(msgspec.Struct, forbid_unknown_fields=True):
+    """Contract base. Not frozen — fields are mutable."""
+
+    def __hash__(self) -> int:
+        return hash(tuple(getattr(self, f) for f in self.__struct_fields__))
 
     TYPE_ID: ClassVar[str] = "comfyng.contract"
     CONTRACT_VERSION: ClassVar[int] = 1

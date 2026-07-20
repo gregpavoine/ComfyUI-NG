@@ -64,11 +64,7 @@ class PortTypeDefinition(Contract):
             raise ValueError("ref must be a TypeRef")
         if not isinstance(self.schema, Mapping):
             raise ValueError("schema must be a JSON object")
-        object.__setattr__(
-            self,
-            "schema",
-            freeze_json_value(self.schema, path="$.schema"),
-        )
+        self.schema = freeze_json_value(self.schema, path="$.schema")
         if not isinstance(self.serialization_strategy, SerializationStrategy):
             raise ValueError("serialization_strategy must be a SerializationStrategy")
         if not isinstance(self.transfer_policy, TransferPolicy):
@@ -157,7 +153,7 @@ class NodeInstance(Contract):
             if not isinstance(value, Mapping):
                 raise ValueError(f"{field} must be a JSON object")
             frozen = freeze_json_value(value, path=f"$.{field}")
-            object.__setattr__(self, field, frozen)
+            setattr(self, field, frozen)
             if field == "inputs":
                 for key in frozen:  # type: ignore[union-attr]
                     validate_port_name(key, field="input name")
@@ -254,7 +250,7 @@ class Graph(Contract):
                         f"graph {field} values must be {binding_type.__name__} values"
                     )
                 frozen[key] = binding
-            object.__setattr__(self, field, FrozenDict(frozen))
+            setattr(self, field, FrozenDict(frozen))
 
 
 def _default_types() -> tuple[PortTypeDefinition, ...]:

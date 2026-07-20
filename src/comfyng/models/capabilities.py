@@ -124,11 +124,7 @@ class ModelHandle(Contract):
             raise ValueError("size_bytes must be non-negative")
         if not isinstance(self.metadata, Mapping):
             raise ValueError("metadata must be a JSON object")
-        object.__setattr__(
-            self,
-            "metadata",
-            freeze_json_value(self.metadata, path="$.metadata"),
-        )
+        self.metadata = freeze_json_value(self.metadata, path="$.metadata")
         for field in ("source_provider", "source_model_id", "source_revision"):
             value = getattr(self, field)
             if value is not None:

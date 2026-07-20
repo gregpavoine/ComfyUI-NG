@@ -931,16 +931,25 @@ def test_execution_contracts_reject_inconsistent_dependencies_groups_and_plan() 
     second_group = plan.groups[1]
 
     with pytest.raises(ValueError, match="dependencies"):
-        msgspec.structs.replace(first, dependencies=(first.node_id,))
-    with pytest.raises(ValueError, match="group_index"):
-        msgspec.structs.replace(second_group, steps=(first,))
+        _ = type(first)(
+            **{**{f: getattr(first, f) for f in first.__struct_fields__},
+               "dependencies": (first.node_id,)}
+        )
+    with pytest.raises(ValueError, match="execution group"):
+        _ = type(second_group)(
+            **{**{f: getattr(second_group, f) for f in second_group.__struct_fields__},
+               "steps": (first,)}
+        )
     with pytest.raises(ValueError, match="topological_order"):
-        msgspec.structs.replace(
-            plan,
-            topological_order=tuple(reversed(plan.topological_order)),
+        _ = type(plan)(
+            **{**{f: getattr(plan, f) for f in plan.__struct_fields__},
+               "topological_order": tuple(reversed(plan.topological_order))}
         )
     with pytest.raises(ValueError, match="groups"):
-        msgspec.structs.replace(plan, groups=plan.groups[:-1])
+        _ = type(plan)(
+            **{**{f: getattr(plan, f) for f in plan.__struct_fields__},
+               "groups": plan.groups[:-1]}
+        )
 
 
 def test_execution_plan_contract_round_trips_with_regions_and_fusions() -> None:

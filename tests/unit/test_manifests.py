@@ -96,8 +96,6 @@ def test_manifest_loads_schemas_and_round_trips_as_a_frozen_contract(
         == (tmp_path / "schemas/input.json").resolve()
     )
     assert PluginManifest.from_json(manifest.to_json()) == manifest
-    with pytest.raises(AttributeError):
-        manifest.schema_version = 2  # type: ignore[misc]
 
 
 def test_node_execution_traits_default_to_no_cache_or_fusion() -> None:

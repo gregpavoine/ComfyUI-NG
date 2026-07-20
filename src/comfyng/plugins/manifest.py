@@ -340,7 +340,7 @@ class NodeDefinition(Contract):
             value = getattr(self, field)
             if not isinstance(value, Mapping):
                 raise ValueError(f"{field} must be a JSON object")
-            object.__setattr__(
+            setattr(
                 self,
                 field,
                 freeze_json_value(value, path=f"$.{field}"),
@@ -412,7 +412,7 @@ class PluginManifest(Contract):
         )
         if not isinstance(frozen_permissions, FrozenDict):
             raise ValueError("manifest permissions must be a mapping")
-        object.__setattr__(self, "permissions", frozen_permissions)
+        self.permissions = frozen_permissions
         if type(self.dependencies) not in (list, tuple):
             raise ValueError("manifest dependencies must be a list or tuple")
         dependencies: list[str] = []
@@ -424,7 +424,7 @@ class PluginManifest(Contract):
             if not dependency:
                 raise ValueError("manifest dependencies must be non-empty strings")
             dependencies.append(dependency)
-        object.__setattr__(self, "dependencies", tuple(dependencies))
+        self.dependencies = tuple(dependencies)
         if self.signature is not None:
             _string(self.signature, field="manifest.signature")
 

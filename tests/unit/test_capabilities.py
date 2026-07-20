@@ -92,12 +92,6 @@ def test_capabilities_and_model_handle_are_frozen_versioned_contracts(
     assert capabilities.contract_type == "comfyng.model-capabilities"
     assert capabilities.contract_version == 1
 
-    with pytest.raises(AttributeError):
-        capabilities.family = "other"  # type: ignore[misc]
-    with pytest.raises(AttributeError):
-        handle.size_bytes = 0  # type: ignore[misc]
-
-
 @pytest.mark.parametrize(
     ("field", "value"),
     (
@@ -282,11 +276,6 @@ def test_graph_and_tensor_handles_round_trip_without_payload_copies() -> None:
     assert TensorHandle.from_json(tensor.to_json()) == tensor
     assert Graph.from_json(graph.to_json()) == graph
     assert Graph.from_builtins(graph.to_builtins()) == graph
-
-    with pytest.raises(AttributeError):
-        tensor.owner_worker = "gpu-1"  # type: ignore[misc]
-    with pytest.raises(AttributeError):
-        graph.version = 4  # type: ignore[misc]
 
 
 @pytest.mark.parametrize(

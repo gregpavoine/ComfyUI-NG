@@ -7,14 +7,14 @@ name = "comfyui-ng"
 version = "0.1.0"
 description = "A typed, local-first control plane for modern image-generation workflows."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = [
   "aiosqlite>=0.22,<1",
   "fastapi>=0.116,<1",
   "jsonschema>=4.23,<5",
-  "msgspec>=0.19,<1",
+  "msgspec>=0.18,<0.19",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "PyYAML>=6.0.2,<7",

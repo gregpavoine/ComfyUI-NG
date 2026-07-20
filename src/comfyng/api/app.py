@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import sys
 import time
@@ -46,6 +47,17 @@ class JobSubmissionDTO(BaseModel):
     connections: list[dict[str, Any]] | None = None
 
 
+def _schema_type(prop: Mapping[str, Any]) -> str:
+    raw = prop.get("type")
+    if isinstance(raw, str):
+        return raw.upper()
+    if isinstance(raw, (list, tuple)):
+        for t in raw:
+            if isinstance(t, str) and t != "null":
+                return t.upper()
+    return "ANY"
+
+
 _AVAILABLE_MODELS: list[dict[str, Any]] = []
 
 def _scan_files_in_dirs(base_dirs: list[Path], extensions: tuple[str, ...]) -> list[str]:
@@ -71,15 +83,34 @@ def _scan_files_in_dirs(base_dirs: list[Path], extensions: tuple[str, ...]) -> l
     return files
 
 
+def _get_real_model_dirs() -> list[Path]:
+    dirs: list[Path] = []
+    for value in os.environ.get("COMFYNG_MODEL_PATHS", "").split(os.pathsep):
+        v = value.strip()
+        if v:
+            dirs.append(Path(v).expanduser())
+    home = Path.home()
+    dirs.extend([
+        home / ".local" / "share" / "comfyui-ng" / "models",
+        home / "ComfyUI" / "models" / "diffusion_models",
+        home / "ComfyUI" / "models" / "checkpoints",
+        home / "ComfyUI" / "Models" / "diffusion_models",
+        home / "ComfyUI" / "Models" / "checkpoints",
+        home / "Documents" / "ComfyUI" / "models" / "diffusion_models",
+        home / "Documents" / "ComfyUI" / "models" / "checkpoints",
+    ])
+    seen = set()
+    result: list[Path] = []
+    for d in dirs:
+        resolved = d.resolve()
+        if resolved.is_dir() and str(resolved) not in seen:
+            seen.add(str(resolved))
+            result.append(resolved)
+    return result
+
 def _get_real_models() -> list[dict[str, Any]]:
     import hashlib
-    # Scan both lowercase and uppercase directories
-    search_dirs = [
-        Path("/home/gp/ComfyUI/models/checkpoints"),
-        Path("/home/gp/ComfyUI/Models/checkpoints"),
-        Path("/home/gp/ComfyUI/models/diffusion_models"),
-        Path("/home/gp/ComfyUI/Models/diffusion_models")
-    ]
+    search_dirs = _get_real_model_dirs()
     models = []
     seen_paths = set()
     for sdir in search_dirs:
@@ -271,145 +302,65 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/nodes/catalogue")
     async def get_node_catalogue() -> dict[str, Any]:
-        checkpoints = _scan_files_in_dirs([
-            Path("/home/gp/ComfyUI/models/checkpoints"),
-            Path("/home/gp/ComfyUI/Models/checkpoints"),
-            Path("/home/gp/ComfyUI/models/diffusion_models"),
-            Path("/home/gp/ComfyUI/Models/diffusion_models")
-        ], (".safetensors", ".ckpt"))
+        model_dirs = _get_real_model_dirs()
+        checkpoints = _scan_files_in_dirs(model_dirs, (".safetensors", ".ckpt"))
         
-            
-        vaes = _scan_files_in_dirs([
-            Path("/home/gp/ComfyUI/models/vae"),
-            Path("/home/gp/ComfyUI/Models/vae")
-        ], (".safetensors", ".ckpt", ".pt"))
+        vae_dirs: list[Path] = [p / "vae" for p in model_dirs] + [Path.home() / "ComfyUI" / "models" / "vae", Path.home() / "ComfyUI" / "Models" / "vae"]
+        vaes = _scan_files_in_dirs([d for d in vae_dirs if d.exists()], (".safetensors", ".ckpt", ".pt"))
         
-        loras = _scan_files_in_dirs([
-            Path("/home/gp/ComfyUI/models/loras"),
-            Path("/home/gp/ComfyUI/Models/loras")
-        ], (".safetensors", ".ckpt"))
+        lora_dirs: list[Path] = [p / "loras" for p in model_dirs] + [Path.home() / "ComfyUI" / "models" / "loras", Path.home() / "ComfyUI" / "Models" / "loras"]
+        loras = _scan_files_in_dirs([d for d in lora_dirs if d.exists()], (".safetensors", ".ckpt"))
 
-        try:
-            catalogue = NodeCatalogue.discover()
-            nodes_data = []
-            for node in catalogue.nodes:
-                nodes_data.append(
-                    {
-                        "name": node.name,
-                        "display_name": node.display_name,
-                        "category": node.category or "General",
-                        "description": node.description or f"Official node: {node.display_name}",
-                        "inputs": [
-                            {"name": p.name, "type": p.type, "required": p.required}
-                            for p in node.inputs
-                        ],
-                        "outputs": [
-                            {"name": p.name, "type": p.type} for p in node.outputs
-                        ],
-                        "parameters": [
-                            {
-                                "name": p.name,
-                                "type": p.type,
-                                "default": p.default,
-                                "options": (
-                                    checkpoints if "ckpt" in p.name.lower() or "model" in p.name.lower()
-                                    else loras if "lora" in node.name.lower() or "lora" in p.name.lower()
-                                    else vaes if "vae" in node.name.lower() or "vae" in p.name.lower()
-                                    else None
-                                ),
-                                "description": p.description,
-                            }
-                            for p in node.parameters
-                        ],
-                    }
-                )
-            return {"status": "ok", "total": len(nodes_data), "nodes": nodes_data}
-        except Exception:
-            return {
-                "status": "ok",
-                "total": 6,
-                "nodes": [
-                    {
-                        "name": "LoadCheckpoint",
-                        "display_name": "Load Checkpoint (FLUX)",
-                        "category": "Loaders",
-                        "description": "Loads FLUX.1 or modern transformer checkpoint model",
-                        "inputs": [],
-                        "outputs": [{"name": "MODEL", "type": "MODEL"}, {"name": "CLIP", "type": "CLIP"}, {"name": "VAE", "type": "VAE"}],
-                        "parameters": [
-                            {
-                                "name": "ckpt_name",
-                                "type": "STRING",
-                                "default": checkpoints[0] if checkpoints else None,
-                                "options": checkpoints,
-                            }
-                        ],
-                    },
-                    {
-                        "name": "CLIPTextEncode",
-                        "display_name": "CLIP Text Encode (Prompt)",
-                        "category": "Conditioning",
-                        "description": "Encodes text prompt into conditioning tensor",
-                        "inputs": [{"name": "CLIP", "type": "CLIP", "required": True}],
-                        "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING"}],
-                        "parameters": [{"name": "text", "type": "STRING", "default": "A cybernetic neon space station"}],
-                    },
-                    {
-                        "name": "EmptyLatentImage",
-                        "display_name": "Empty Latent Image",
-                        "category": "Latent",
-                        "description": "Creates an empty latent tensor canvas",
-                        "inputs": [],
-                        "outputs": [{"name": "LATENT", "type": "LATENT"}],
-                        "parameters": [
-                            {"name": "width", "type": "INT", "default": 1024},
-                            {"name": "height", "type": "INT", "default": 1024},
-                            {"name": "batch_size", "type": "INT", "default": 1},
-                        ],
-                    },
-                    {
-                        "name": "KSampler",
-                        "display_name": "KSampler (Advanced)",
-                        "category": "Sampling",
-                        "description": "Executes iterative diffusion sampling loop",
-                        "inputs": [
-                            {"name": "MODEL", "type": "MODEL", "required": True},
-                            {"name": "POSITIVE", "type": "CONDITIONING", "required": True},
-                            {"name": "NEGATIVE", "type": "CONDITIONING", "required": False},
-                            {"name": "LATENT", "type": "LATENT", "required": True},
-                        ],
-                        "outputs": [{"name": "LATENT", "type": "LATENT"}],
-                        "parameters": [
-                            {"name": "seed", "type": "INT", "default": 42},
-                            {"name": "steps", "type": "INT", "default": 25},
-                            {"name": "cfg", "type": "FLOAT", "default": 3.5},
-                            {"name": "sampler_name", "type": "STRING", "default": "euler"},
-                            {"name": "scheduler", "type": "STRING", "default": "normal"},
-                        ],
-                    },
-                    {
-                        "name": "VAEDecode",
-                        "display_name": "VAE Decode Image",
-                        "category": "Latent",
-                        "description": "Decodes latent space back to pixel RGB tensor",
-                        "inputs": [
-                            {"name": "LATENT", "type": "LATENT", "required": True},
-                            {"name": "VAE", "type": "VAE", "required": True},
-                        ],
-                        "outputs": [{"name": "IMAGE", "type": "IMAGE"}],
-                        "parameters": [],
-                    },
-                    {
-                        "name": "SaveImage",
-                        "display_name": "Save Image Artifact",
-                        "category": "Output",
-                        "description": "Saves image tensor to CAS storage and produces artifact",
-                        "inputs": [{"name": "IMAGE", "type": "IMAGE", "required": True}],
-                        "outputs": [],
-                        "parameters": [{"name": "filename_prefix", "type": "STRING", "default": "comfyng_output"}],
-                    },
-                ],
-            }
+        catalogue = NodeCatalogue.discover()
+        nodes_data = []
+        for node in catalogue.nodes:
+            inputs_schema = node.input_schema or {}
+            outputs_schema = node.output_schema or {}
+            in_props = inputs_schema.get("properties", {})
+            out_props = outputs_schema.get("properties", {})
+            required_inputs = set(inputs_schema.get("required", ()))
+
+            nodes_data.append(
+                {
+                    "name": node.id,
+                    "display_name": node.display_name,
+                    "category": node.category or "General",
+                    "description": node.description or f"Official node: {node.display_name}",
+                    "inputs": [
+                        {
+                            "name": name,
+                            "type": prop.get("x-comfyng-type", prop.get("type", "any")),
+                            "required": name in required_inputs,
+                        }
+                        for name, prop in in_props.items()
+                        if "x-comfyng-type" in prop
+                    ],
+                    "outputs": [
+                        {
+                            "name": name,
+                            "type": prop.get("x-comfyng-type", prop.get("type", "any")),
+                        }
+                        for name, prop in out_props.items()
+                    ],
+                    "parameters": [
+                        {
+                            "name": name,
+                            "type": _schema_type(prop),
+                            "default": prop.get("default"),
+                            "options": (
+                                checkpoints if "ckpt" in name.lower() or "model" in name.lower()
+                                else loras if "lora" in node.id.lower() or "lora" in name.lower()
+                                else vaes if "vae" in node.id.lower() or "vae" in name.lower()
+                                else None
+                            ),
+                            "description": prop.get("description"),
+                        }
+                        for name, prop in in_props.items()
+                        if "x-comfyng-type" not in prop
+                    ],
+                }
+            )
+        return {"status": "ok", "total": len(nodes_data), "nodes": nodes_data}
 
     @app.get("/api/v1/jobs")
     async def list_jobs() -> dict[str, Any]:

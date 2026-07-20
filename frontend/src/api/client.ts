@@ -52,20 +52,9 @@ export interface PluginItem {
 }
 
 export async function fetchSystemInfo(): Promise<SystemInfo> {
-  try {
-    const res = await fetch('/api/v1/system/info');
-    if (!res.ok) throw new Error('Failed');
-    return await res.json();
-  } catch {
-    return {
-      status: 'ok',
-      version: '0.1.0',
-      python: '3.14.4',
-      data_root: '/home/gp/.local/share/comfyui-ng',
-      multiprocessing: 'forkserver',
-      active_workers: 2,
-    };
-  }
+  const res = await fetch('/api/v1/system/info');
+  if (!res.ok) throw new Error('Failed');
+  return await res.json();
 }
 
 export async function fetchNodeCatalogue(): Promise<NodeDefinition[]> {

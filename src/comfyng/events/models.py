@@ -24,7 +24,7 @@ def _identifier(value: object, name: str) -> str:
     return value
 
 
-class EventEnvelope(msgspec.Struct, frozen=True, forbid_unknown_fields=True):
+class EventEnvelope(msgspec.Struct, forbid_unknown_fields=True):
     sequence: int
     stream_sequence: int
     event_type: str
@@ -51,9 +51,7 @@ class EventEnvelope(msgspec.Struct, frozen=True, forbid_unknown_fields=True):
             _identifier(self.job_id, "job_id")
         if not isinstance(self.payload, Mapping):
             raise ValueError("payload must be a JSON object")
-        object.__setattr__(
-            self, "payload", freeze_json_value(self.payload, path="$.payload")
-        )
+        self.payload = freeze_json_value(self.payload, path="$.payload")
 
     def to_json(self) -> bytes:
         return msgspec.json.encode(self)
