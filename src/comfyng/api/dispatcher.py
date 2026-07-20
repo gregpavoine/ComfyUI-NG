@@ -98,11 +98,12 @@ class WorkflowDispatcher:
                 continue
             name = cls._node_name(raw_node).lower()
             params = cls._params(raw_node)
-            if name in {"loadcheckpoint", "checkpointloadersimple", "ng.model.load", "ng.model.load"}:
+            if name in {"loadcheckpoint", "checkpointloadersimple", "ng.model.load"}:
                 request["model"] = (
                     params.get("model_path")
                     or params.get("ckpt_name")
                     or params.get("model")
+                    or params.get("path")
                     or request["model"]
                 )
             elif name in {"cliptextencode", "ng.prompt.encode", "promptencode"}:

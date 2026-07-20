@@ -5,34 +5,21 @@ import {
   Trash2,
   CheckCircle2,
   Layers,
-  Sliders,
   X,
   Sparkles,
-  PanelLeftClose,
-  PanelRightClose,
-  PanelRightOpen,
   Download,
   Image as ImageIcon,
   Zap,
   List,
-  FolderOpen,
   Settings,
   ChevronRight,
   ChevronDown,
   Clock,
   AlertCircle,
   RefreshCw,
-  Search,
-  Plus,
   Save,
   Eye,
-  FileJson,
-  Cpu,
-  HardDrive,
-  Activity,
-  Server,
   User,
-  LogOut,
   Menu,
 } from 'lucide-react';
 
@@ -59,7 +46,7 @@ interface LogEntry {
   message: string;
 }
 
-type LeftMenu = 'queue' | 'images' | 'config' | 'gallery' | 'nodes' | null;
+type LeftMenu = 'queue' | 'images' | 'config' | 'logs' | null;
 
 const TYPE_COLORS: Record<string, string> = {
   MODEL: '#818cf8',
@@ -80,9 +67,8 @@ const TYPE_COLORS: Record<string, string> = {
 const LEFT_MENU_ITEMS: { key: LeftMenu; label: string; icon: React.ReactNode; color: string }[] = [
   { key: 'queue', label: 'Job Queue', icon: <Clock size={16} />, color: '#f59e0b' },
   { key: 'images', label: 'Generated Images', icon: <ImageIcon size={16} />, color: '#10b981' },
-  { key: 'gallery', label: 'Gallery', icon: <FolderOpen size={16} />, color: '#8b5cf6' },
-  { key: 'config', label: 'NG Configuration', icon: <Settings size={16} />, color: '#06b6d4' },
-  { key: 'nodes', label: 'Node Palette', icon: <Search size={16} />, color: '#6366f1' },
+  { key: 'config', label: 'Configuration', icon: <Settings size={16} />, color: '#06b6d4' },
+  { key: 'logs', label: 'Logs', icon: <List size={16} />, color: '#8b5cf6' },
 ];
 
 const DEFAULT_NG_CONFIG = `# ComfyUI-NG Configuration
@@ -133,31 +119,14 @@ auth:
   mode: NONE_LOCALHOST
 `;
 
-const DEFAULT_WORKFLOW_JSON = `{
-  "id": "flux-txt2img",
-  "name": "FLUX.1 Text to Image",
-  "nodes": [
-    { "id": "ng.model.flux.load", "params": { "model_path": "/models/flux-dev" } },
-    { "id": "ng.sample.flux", "params": { "prompt": "", "steps": 28, "guidance": 3.5 } }
-  ],
-  "connections": []
-}`;
 
-const WORKFLOW_TEMPLATES = [
-  { id: 'flux-txt2img', name: 'FLUX Text to Image', description: 'Basic FLUX.1 text-to-image workflow', nodes: 2, category: 'flux' },
-  { id: 'flux-img2img', name: 'FLUX Image to Image', description: 'FLUX.1 image-to-image with input image', nodes: 3, category: 'flux' },
-  { id: 'flux-inpaint', name: 'FLUX Inpainting', description: 'FLUX.1 inpainting with mask', nodes: 4, category: 'flux' },
-  { id: 'flux-lora', name: 'FLUX with LoRA', description: 'FLUX.1 with LoRA weight loading', nodes: 3, category: 'flux' },
-];
 
 export const EditorSurface: React.FC = () => {
   const [nodesDef, setNodesDef] = useState<NodeDefinition[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelItem[]>([]);
-  const [search, setSearch] = useState('');
-  const [activeLeftMenu, setActiveLeftMenu] = useState<LeftMenu>('nodes');
+  const [activeLeftMenu, setActiveLeftMenu] = useState<LeftMenu>('queue');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [showRightPanel, setShowRightPanel] = useState(true);
-  const [rightPanelTab, setRightPanelTab] = useState<'inspector' | 'logs' | 'workflow'>('workflow');
 
   const [nodesOnCanvas, setNodesOnCanvas] = useState<CanvasNode[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -287,6 +256,20 @@ export const EditorSurface: React.FC = () => {
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleCanvasDoubleClick = (e: React.MouseEvent) => {
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const addNodeFromMenu = (def: NodeDefinition) => {
+    setContextMenu(null);
+    addNodeToCanvas(def);
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -354,6 +337,7 @@ export const EditorSurface: React.FC = () => {
     if (!wiringFrom) return;
     if (wiringFrom.nodeId === targetNodeId) return;
     if (wiringFrom.isOutput === isTargetOutput) return;
+    if (wiringFrom.type !== targetType) return;
 
     const fromNodeId = wiringFrom.isOutput ? wiringFrom.nodeId : targetNodeId;
     const fromPort = wiringFrom.isOutput ? wiringFrom.portName : targetPortName;
@@ -372,14 +356,16 @@ export const EditorSurface: React.FC = () => {
     setProgressStatus('Queueing job in Scheduler...');
     addLog('info', 'Submitting job to scheduler...');
 
-    const samplerNode = nodesOnCanvas.find((n) => n.def.name === 'KSampler');
-    const clipNode = nodesOnCanvas.find((n) => n.def.name === 'CLIPTextEncode');
-    const promptText = clipNode?.params?.text || 'A cybernetic space station in deep space';
+    const samplerNode = nodesOnCanvas.find((n) => n.def.name === 'ng.sample.run');
+    const promptNode = nodesOnCanvas.find((n) => n.def.name === 'ng.conditioning.prompt_encode');
+    const modelNode = nodesOnCanvas.find((n) => n.def.name === 'ng.model.load');
+    const promptText = promptNode?.params?.prompt || 'A cybernetic space station in deep space';
     const seedVal = samplerNode?.params?.seed ? Number(samplerNode.params.seed) : 42;
     const stepsVal = samplerNode?.params?.steps ? Number(samplerNode.params.steps) : 28;
+    const modelPath = modelNode?.params?.path || '';
 
     try {
-      const job = await submitJob('FLUX.1 Generation', promptText, '', seedVal, stepsVal, 1024, 1024, nodesOnCanvas, connections);
+      const job = await submitJob('FLUX.1 Generation', promptText, modelPath, seedVal, stepsVal, 1024, 1024, nodesOnCanvas, connections);
 
       if (!job) {
         addLog('error', 'Job submission failed - no response from scheduler');
@@ -424,8 +410,9 @@ export const EditorSurface: React.FC = () => {
           setIsSubmitting(false);
           setExecutionProgress(null);
           setProgressStatus('');
-          addLog('error', `Job ${job.id}: FAILED - check worker logs`);
-          setToastMessage(`Job failed: ${updatedJob.id}`);
+          const errMsg = (updatedJob as any).error || 'check worker logs';
+          addLog('error', `Job ${job.id}: FAILED - ${errMsg}`);
+          setToastMessage(`Job failed: ${updatedJob.id} - ${errMsg}`);
         } else if (updatedJob.status === 'cancelled') {
           clearInterval(pollInterval);
           setIsSubmitting(false);
@@ -476,11 +463,6 @@ export const EditorSurface: React.FC = () => {
       return { x, y: node.y + 70 + portIndex * 26 };
     }
   };
-
-  const filteredDefs = nodesDef.filter(
-    (d) => d.display_name.toLowerCase().includes(search.toLowerCase()) || d.category.toLowerCase().includes(search.toLowerCase())
-  );
-  const selectedNode = nodesOnCanvas.find((n) => n.id === selectedNodeId);
 
   const leftPanelContent = () => {
     switch (activeLeftMenu) {
@@ -567,41 +549,6 @@ export const EditorSurface: React.FC = () => {
           </div>
         );
 
-      case 'gallery':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
-            <div style={{ fontWeight: 600, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <FolderOpen size={16} /> Gallery
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {['All', 'FLUX', 'Qwen', 'LoRA'].map(tag => (
-                <button key={tag} className="btn btn-secondary" style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}>
-                  {tag}
-                </button>
-              ))}
-            </div>
-            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textAlign: 'center', padding: '2rem' }}>
-              Workflow templates and presets will appear here.
-            </div>
-            {WORKFLOW_TEMPLATES.map((tmpl) => (
-              <div key={tmpl.id} style={{
-                padding: '0.6rem 0.8rem',
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
-              >
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{tmpl.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{tmpl.description}</div>
-              </div>
-            ))}
-          </div>
-        );
-
       case 'config':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
@@ -635,28 +582,39 @@ export const EditorSurface: React.FC = () => {
           </div>
         );
 
-      case 'nodes':
-      default:
+      case 'logs':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
-            <div style={{ fontWeight: 600, color: '#6366f1', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Search size={16} /> Node Palette
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <List size={16} /> Logs
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                {logs.length} entries
+              </span>
+              <button className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                onClick={() => setLogs([])}>Clear</button>
             </div>
-            <input
-              type="text" className="search-input" placeholder="Search nodes..."
-              value={search} onChange={(e) => setSearch(e.target.value)}
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', flex: 1 }}>
-              {filteredDefs.map((def, idx) => (
-                <div key={idx} className="palette-item" onClick={() => addNodeToCanvas(def)}
-                  style={{ cursor: 'grab', userSelect: 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="palette-item-name">{def.display_name}</span>
-                    <Plus size={14} style={{ color: 'var(--accent-primary)' }} />
+            <div style={{
+              flex: 1, overflowY: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.7rem',
+              background: 'rgba(9, 13, 22, 0.9)', borderRadius: 'var(--radius-sm)',
+              padding: '0.5rem', lineHeight: '1.6',
+            }}>
+              {logs.length === 0 ? (
+                <span style={{ color: 'var(--text-dim)' }}>No log entries yet.</span>
+              ) : (
+                logs.map((log, i) => (
+                  <div key={i} style={{
+                    color: log.level === 'error' ? '#f43f5e' : log.level === 'warn' ? '#f59e0b' : log.level === 'debug' ? '#64748b' : '#cbd5e1',
+                  }}>
+                    <span style={{ color: '#52525b' }}>[{log.time}]</span>{' '}
+                    <span style={{ color: log.level === 'error' ? '#f43f5e' : log.level === 'warn' ? '#f59e0b' : log.level === 'debug' ? '#64748b' : '#6366f1' }}>
+                      {log.level.toUpperCase().padEnd(5)}
+                    </span>{' '}
+                    {log.message}
                   </div>
-                  <span className="palette-item-desc">{def.description}</span>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         );
@@ -701,6 +659,9 @@ export const EditorSurface: React.FC = () => {
       <div className="canvas-viewport" ref={viewportRef}
         onMouseDown={handleCanvasMouseDown}
         onWheel={handleWheel}
+        onContextMenu={handleContextMenu}
+        onDoubleClick={handleCanvasDoubleClick}
+        onClick={() => setContextMenu(null)}
         style={{ cursor: isPanning ? 'grabbing' : draggingNodeId ? 'grabbing' : 'default' }}
       >
         <div style={{
@@ -753,7 +714,7 @@ export const EditorSurface: React.FC = () => {
 
           {toastMessage && (
             <div style={{
-              position: 'absolute', top: 16, right: showRightPanel ? 320 : 16,
+              position: 'absolute', top: 16, right: 16,
               background: toastMessage.includes('fail') ? 'rgba(244, 63, 94, 0.95)' : 'rgba(16, 185, 129, 0.95)',
               color: '#042f2e', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 600,
               boxShadow: `0 4px 20px ${toastMessage.includes('fail') ? 'rgba(244, 63, 94, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
@@ -835,13 +796,48 @@ export const EditorSurface: React.FC = () => {
                     </div>
                   );
                 })}
+                {node.def.parameters.length > 0 && (
+                  <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
+                    {node.def.parameters.map((param, idx) => (
+                      <div key={idx} style={{ marginBottom: '0.4rem' }}>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+                          {param.name}
+                        </label>
+                        {param.type === 'MODEL' || param.options ? (
+                          <select className="search-input" style={{ width: '100%', fontSize: '0.7rem', padding: '0.25rem 0.4rem' }}
+                            value={node.params[param.name] || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNodesOnCanvas((prev) =>
+                                prev.map((n) => n.id === node.id ? { ...n, params: { ...n.params, [param.name]: val } } : n)
+                              );
+                            }}>
+                            <option value="">Select...</option>
+                            {availableModels.map((m) => (
+                              <option key={m.name} value={m.name}>{m.display_name || m.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <textarea rows={2} className="search-input" style={{ width: '100%', fontSize: '0.7rem', padding: '0.25rem 0.4rem', resize: 'vertical' }}
+                            value={node.params[param.name] ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNodesOnCanvas((prev) =>
+                                prev.map((n) => n.id === node.id ? { ...n, params: { ...n.params, [param.name]: val } } : n)
+                              );
+                            }} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
 
         {/* Zoom controls */}
-        <div style={{ position: 'absolute', bottom: 16, right: showRightPanel ? 316 : 16, display: 'flex', gap: '0.3rem', zIndex: 10 }}>
+        <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', gap: '0.3rem', zIndex: 10 }}>
           <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
             onClick={() => setCanvasScale(s => Math.max(0.2, s / 1.2))}>-</button>
           <span style={{
@@ -856,175 +852,34 @@ export const EditorSurface: React.FC = () => {
         </div>
       </div>
 
-      {showRightPanel ? (
-        <div className="inspector-panel" style={{ width: 300, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
-            <button style={{
-              flex: 1, padding: '0.6rem 0.5rem', border: 'none', background: rightPanelTab === 'workflow' ? 'rgba(99, 102, 241, 0.12)' : 'transparent',
-              color: rightPanelTab === 'workflow' ? '#f8fafc' : 'var(--text-muted)', fontWeight: rightPanelTab === 'workflow' ? 600 : 400,
-              fontSize: '0.8rem', cursor: 'pointer', borderBottom: rightPanelTab === 'workflow' ? '2px solid #6366f1' : '2px solid transparent',
-            }} onClick={() => setRightPanelTab('workflow')}>
-              <FileJson size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} /> Workflow
-            </button>
-            <button style={{
-              flex: 1, padding: '0.6rem 0.5rem', border: 'none', background: rightPanelTab === 'inspector' ? 'rgba(99, 102, 241, 0.12)' : 'transparent',
-              color: rightPanelTab === 'inspector' ? '#f8fafc' : 'var(--text-muted)', fontWeight: rightPanelTab === 'inspector' ? 600 : 400,
-              fontSize: '0.8rem', cursor: 'pointer', borderBottom: rightPanelTab === 'inspector' ? '2px solid #6366f1' : '2px solid transparent',
-            }} onClick={() => setRightPanelTab('inspector')}>
-              <Sliders size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} /> Inspector
-            </button>
-            <button style={{
-              flex: 1, padding: '0.6rem 0.5rem', border: 'none', background: rightPanelTab === 'logs' ? 'rgba(99, 102, 241, 0.12)' : 'transparent',
-              color: rightPanelTab === 'logs' ? '#f8fafc' : 'var(--text-muted)', fontWeight: rightPanelTab === 'logs' ? 600 : 400,
-              fontSize: '0.8rem', cursor: 'pointer', borderBottom: rightPanelTab === 'logs' ? '2px solid #6366f1' : '2px solid transparent',
-            }} onClick={() => setRightPanelTab('logs')}>
-              <List size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} /> Logs
-            </button>
-            <button className="btn btn-secondary" style={{ padding: '0.2rem 0.4rem', border: 'none' }}
-              onClick={() => setShowRightPanel(false)}>
-              <PanelRightClose size={14} />
-            </button>
+      {contextMenu && (
+        <div style={{
+          position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 100,
+          background: '#1e293b', border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)', padding: '0.25rem', minWidth: '220px',
+          maxHeight: '400px', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        }}>
+          <div style={{ padding: '0.4rem 0.75rem', fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Add Node
           </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
-            {rightPanelTab === 'inspector' && (
-              selectedNode ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '1rem', color: '#f8fafc' }}>{selectedNode.def.display_name}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>{selectedNode.def.description}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'var(--font-mono)', marginTop: '0.3rem' }}>ID: {selectedNode.id} | Cat: {selectedNode.def.category}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    {selectedNode.def.parameters.map((param, idx) => (
-                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#a5b4fc' }}>
-                          {param.name} ({param.type})
-                        </label>
-                        {param.type === 'MODEL' || param.name.includes('ckpt') || param.options ? (
-                          <select className="search-input"
-                            value={selectedNode.params[param.name] || availableModels[0]?.name || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setNodesOnCanvas((prev) =>
-                                prev.map((n) => n.id === selectedNode.id ? { ...n, params: { ...n.params, [param.name]: val } } : n)
-                              );
-                            }}>
-                            {availableModels.map((m) => (
-                              <option key={m.name} value={m.name}>{m.display_name || m.name} ({m.size_gb} GB)</option>
-                            ))}
-                          </select>
-                        ) : param.type === 'STRING' && param.name === 'text' ? (
-                          <textarea rows={4} className="search-input"
-                            value={selectedNode.params[param.name] || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setNodesOnCanvas((prev) =>
-                                prev.map((n) => n.id === selectedNode.id ? { ...n, params: { ...n.params, [param.name]: val } } : n)
-                              );
-                            }} />
-                        ) : (
-                          <input type="text" className="search-input"
-                            value={selectedNode.params[param.name] ?? ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setNodesOnCanvas((prev) =>
-                                prev.map((n) => n.id === selectedNode.id ? { ...n, params: { ...n.params, [param.name]: val } } : n)
-                              );
-                            }} />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#cbd5e1' }}>Ports</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Inputs: {selectedNode.def.inputs.map(i => i.name).join(', ') || 'none'}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Outputs: {selectedNode.def.outputs.map(o => o.name).join(', ') || 'none'}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', marginTop: '2rem' }}>
-                  Click a node on canvas to inspect parameters
-                </div>
-              )
-            )}
-
-            {rightPanelTab === 'logs' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', height: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                    {logs.length} entries
-                  </span>
-                  <button className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
-                    onClick={() => setLogs([])}>Clear</button>
-                </div>
-                <div style={{
-                  flex: 1, overflowY: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.7rem',
-                  background: 'rgba(9, 13, 22, 0.9)', borderRadius: 'var(--radius-sm)',
-                  padding: '0.5rem', lineHeight: '1.6',
-                }}>
-                  {logs.length === 0 ? (
-                    <span style={{ color: 'var(--text-dim)' }}>No log entries yet.</span>
-                  ) : (
-                    logs.map((log, i) => (
-                      <div key={i} style={{
-                        color: log.level === 'error' ? '#f43f5e' : log.level === 'warn' ? '#f59e0b' : log.level === 'debug' ? '#64748b' : '#cbd5e1',
-                      }}>
-                        <span style={{ color: '#52525b' }}>[{log.time}]</span>{' '}
-                        <span style={{ color: log.level === 'error' ? '#f43f5e' : log.level === 'warn' ? '#f59e0b' : log.level === 'debug' ? '#64748b' : '#6366f1' }}>
-                          {log.level.toUpperCase().padEnd(5)}
-                        </span>{' '}
-                        {log.message}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {rightPanelTab === 'workflow' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Workflow Info</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  <div>Nodes: {nodesOnCanvas.length}</div>
-                  <div>Connections: {connections.length}</div>
-                  <div>Selected: {selectedNodeId || 'none'}</div>
-                </div>
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem' }}>System Stats</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    {[
-                      { icon: <Cpu size={14} />, label: 'CPU', value: `${navigator.hardwareConcurrency || 8} cores` },
-                      { icon: <HardDrive size={14} />, label: 'RAM', value: '32 GB' },
-                      { icon: <Activity size={14} />, label: 'Scale', value: `${Math.round(canvasScale * 100)}%` },
-                      { icon: <Server size={14} />, label: 'Version', value: '0.1.0' },
-                    ].map((stat, i) => (
-                      <div key={i} style={{
-                        padding: '0.5rem', background: 'rgba(30, 41, 59, 0.5)', borderRadius: 'var(--radius-sm)',
-                        display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.75rem',
-                      }}>
-                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          {stat.icon} {stat.label}
-                        </span>
-                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{stat.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {nodesDef.map((def, idx) => (
+            <div key={idx} onClick={() => addNodeFromMenu(def)}
+              style={{
+                padding: '0.45rem 0.75rem', cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                fontSize: '0.8rem', color: '#e2e8f0', transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span>{def.display_name}</span>
+              <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{def.category}</span>
+            </div>
+          ))}
         </div>
-      ) : (
-        <button className="btn btn-secondary" style={{ position: 'absolute', top: 16, right: 16, zIndex: 15 }}
-          onClick={() => setShowRightPanel(true)}>
-          <PanelRightOpen size={16} /> Panel
-        </button>
       )}
+
+
 
       {outputImageUrl && (
         <div style={{

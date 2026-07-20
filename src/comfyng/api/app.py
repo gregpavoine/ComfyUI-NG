@@ -204,6 +204,7 @@ def _format_job(record: JobRecord) -> dict[str, Any]:
         "image_url": image_url,
         "prompt": record.payload.get("prompt"),
         "seed": record.payload.get("seed"),
+        "error": record.error["message"] if record.error else None,
     }
 
 

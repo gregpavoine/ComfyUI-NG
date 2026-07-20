@@ -27,6 +27,7 @@ export interface Job {
   artefacts: string[];
   image_url?: string;
   prompt?: string;
+  error?: string;
 }
 
 export interface ModelItem {
