@@ -2,11 +2,26 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import json
+import logging
 from pathlib import Path
 import sys
 from typing import Annotated, Any, NoReturn
 
 import typer
+
+
+def _configure_logging(verbose: bool = False) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    # Quiet some noisy loggers
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 EX_UNAVAILABLE = 69
@@ -128,6 +143,10 @@ def serve(
         int | None,
         typer.Option("--port", help="Port number to bind."),
     ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Enable verbose logging."),
+    ] = False,
 ) -> None:
     """Start the local ComfyUI-NG service."""
 
@@ -135,13 +154,14 @@ def serve(
     from comfyng.api.server import run_server
     from comfyng.config import Settings
 
+    _configure_logging(verbose)
     settings = Settings.load(path=config)
     bind_host = host if host is not None else settings.server.host
     bind_port = port if port is not None else settings.server.port
 
-    typer.echo(f"Starting ComfyUI-NG service on http://{bind_host}:{bind_port}...")
+    logging.getLogger(__name__).info("Starting ComfyUI-NG service on http://%s:%s", bind_host, bind_port)
     api_app = create_app(settings)
-    run_server(api_app, host=bind_host, port=bind_port)
+    run_server(api_app, host=bind_host, port=bind_port, verbose=verbose)
 
 
 @app.command()
