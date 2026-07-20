@@ -272,7 +272,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/", response_model=None)
     async def root() -> dict[str, Any] | FileResponse:
-        frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
+        frontend_dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
         if frontend_dist.is_dir() and (frontend_dist / "index.html").is_file():
             return FileResponse(frontend_dist / "index.html")
         return {
@@ -467,7 +467,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     # Static assets serving for frontend
-    frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
+    frontend_dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if frontend_dist.is_dir():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
 

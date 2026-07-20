@@ -64,6 +64,8 @@ const TYPE_COLORS: Record<string, string> = {
   NG_TEXT: '#38bdf8',
 };
 
+const portColor = (type: string): string => TYPE_COLORS[type.replace(/@\d+$/, '')] || '#6366f1';
+
 const LEFT_MENU_ITEMS: { key: LeftMenu; label: string; icon: React.ReactNode; color: string }[] = [
   { key: 'queue', label: 'Job Queue', icon: <Clock size={16} />, color: '#f59e0b' },
   { key: 'images', label: 'Generated Images', icon: <ImageIcon size={16} />, color: '#10b981' },
@@ -731,7 +733,7 @@ export const EditorSurface: React.FC = () => {
               const end = getPortPos(conn.toNodeId, conn.toPort, false);
               const ctrlOffset = Math.max(40, Math.abs(end.x - start.x) * 0.4);
               const pathData = `M ${start.x} ${start.y} C ${start.x + ctrlOffset} ${start.y}, ${end.x - ctrlOffset} ${end.y}, ${end.x} ${end.y}`;
-              const wireColor = TYPE_COLORS[conn.type] || '#6366f1';
+              const wireColor = portColor(conn.type);
               return (
                 <g key={conn.id} onClick={() => removeConnection(conn.id)} style={{ cursor: 'pointer' }}>
                   <path d={pathData} stroke="rgba(0,0,0,0.6)" strokeWidth="6" fill="none" />
@@ -746,7 +748,7 @@ export const EditorSurface: React.FC = () => {
               const pathData = wiringFrom.isOutput
                 ? `M ${start.x} ${start.y} C ${start.x + ctrlOffset} ${start.y}, ${end.x - ctrlOffset} ${end.y}, ${end.x} ${end.y}`
                 : `M ${start.x} ${start.y} C ${start.x - ctrlOffset} ${start.y}, ${end.x + ctrlOffset} ${end.y}, ${end.x} ${end.y}`;
-              const wireColor = TYPE_COLORS[wiringFrom.type] || '#6366f1';
+              const wireColor = portColor(wiringFrom.type);
               return <path d={pathData} stroke={wireColor} strokeWidth="3" strokeDasharray="4 2" fill="none" />;
             })()}
           </svg>
@@ -769,29 +771,29 @@ export const EditorSurface: React.FC = () => {
               </div>
               <div className="canvas-node-body">
                 {node.def.inputs.map((inp, idx) => {
-                  const portColor = TYPE_COLORS[inp.type] || '#818cf8';
+                  const portColorVal = portColor(inp.type);
                   return (
                     <div key={idx} className="port-row">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'crosshair' }}
                         onMouseDown={(e) => handlePortMouseDown(node.id, inp.name, inp.type, false, e)}
                         onMouseUp={(e) => handlePortMouseUp(node.id, inp.name, inp.type, false, e)}>
-                        <div className="port-handle" style={{ background: portColor }} />
+                        <div className="port-handle" style={{ background: portColorVal }} />
                         <span style={{ fontWeight: 500 }}>{inp.name}</span>
                       </div>
-                      <span style={{ fontSize: '0.7rem', color: portColor }}>{inp.type}</span>
+                      <span style={{ fontSize: '0.7rem', color: portColorVal }}>{inp.type}</span>
                     </div>
                   );
                 })}
                 {node.def.outputs.map((out, idx) => {
-                  const portColor = TYPE_COLORS[out.type] || '#34d399';
+                  const portColorVal = portColor(out.type);
                   return (
                     <div key={idx} className="port-row" style={{ justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '0.7rem', color: portColor, marginRight: '0.4rem' }}>{out.type}</span>
+                      <span style={{ fontSize: '0.7rem', color: portColorVal, marginRight: '0.4rem' }}>{out.type}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'crosshair' }}
                         onMouseDown={(e) => handlePortMouseDown(node.id, out.name, out.type, true, e)}
                         onMouseUp={(e) => handlePortMouseUp(node.id, out.name, out.type, true, e)}>
                         <span style={{ fontWeight: 500 }}>{out.name}</span>
-                        <div className="port-handle" style={{ background: portColor }} />
+                        <div className="port-handle" style={{ background: portColorVal }} />
                       </div>
                     </div>
                   );
