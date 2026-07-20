@@ -144,12 +144,17 @@ async def _serve_async(app: FastAPI, host: str, port: int) -> None:
         await server.serve_forever()
 
 
-def run_server(app: FastAPI, host: str = "127.0.0.1", port: int = 8188) -> None:
+def run_server(app: FastAPI, host: str = "127.0.0.1", port: int = 8188, verbose: bool = False) -> None:
     """Run the FastAPI application server on host:port."""
+
+    import logging
+    if verbose:
+        logging.getLogger("comfyng").setLevel(logging.DEBUG)
+        logging.getLogger("uvicorn").setLevel(logging.DEBUG)
 
     try:
         import uvicorn  # type: ignore[import-not-found]
-        uvicorn.run(app, host=host, port=port, log_level="info")
+        uvicorn.run(app, host=host, port=port, log_level="debug" if verbose else "info")
         return
     except ImportError:
         pass
