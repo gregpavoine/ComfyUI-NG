@@ -333,7 +333,7 @@ def _run_command(command: tuple[str, ...], timeout: float) -> CommandResult:
             check=False,
             timeout=timeout,
         )
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return CommandResult(returncode=127, stdout="", stderr="command unavailable")
     return CommandResult(
         returncode=result.returncode,
@@ -373,7 +373,7 @@ def _probe_nvidia(command_runner: CommandRunner) -> tuple[GpuDevice, ...]:
 def _psutil_module() -> Any | None:
     try:
         return importlib.import_module("psutil")
-    except ImportError, OSError:
+    except (ImportError, OSError):
         return None
 
 
@@ -386,7 +386,7 @@ def _system_output(command: tuple[str, ...]) -> str | None:
             check=False,
             timeout=1.0,
         )
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return None
     if result.returncode != 0:
         return None
@@ -439,7 +439,7 @@ def _darwin_memory() -> MemoryInventory | None:
 def _linux_memory() -> MemoryInventory | None:
     try:
         lines = Path("/proc/meminfo").read_text(encoding="utf-8").splitlines()
-    except OSError, UnicodeError:
+    except (OSError, UnicodeError):
         return None
     values: dict[str, int] = {}
     for line in lines:
@@ -473,13 +473,13 @@ def _fallback_memory() -> MemoryInventory:
         page_size = int(os.sysconf("SC_PAGE_SIZE"))
         total_pages = int(os.sysconf("SC_PHYS_PAGES"))
         total = page_size * total_pages
-    except KeyError, OSError, TypeError, ValueError:
+    except (KeyError, OSError, TypeError, ValueError):
         total = 1
         page_size = 1
     try:
         available_pages = int(os.sysconf("SC_AVPHYS_PAGES"))
         available = page_size * available_pages
-    except KeyError, OSError, TypeError, ValueError:
+    except (KeyError, OSError, TypeError, ValueError):
         available = 0
     return MemoryInventory(
         total_bytes=max(1, total),
@@ -510,7 +510,7 @@ def _fallback_physical_cores(logical: int) -> int:
                 )
                 core = (topology / "core_id").read_text(encoding="ascii").strip()
                 cores.add((package, core))
-        except OSError, UnicodeError:
+        except (OSError, UnicodeError):
             cores.clear()
         if cores:
             return max(1, min(logical, len(cores)))
@@ -525,7 +525,7 @@ def _fallback_cpu_features() -> tuple[str, ...]:
                 key, separator, value = line.partition(":")
                 if separator and key.strip().casefold() in {"flags", "features"}:
                     features.update(value.casefold().split())
-        except OSError, UnicodeError:
+        except (OSError, UnicodeError):
             pass
     elif platform.system() == "Darwin":
         for key in ("machdep.cpu.features", "machdep.cpu.leaf7_features"):
@@ -554,7 +554,7 @@ def _probe_cpu_and_memory() -> tuple[CpuInventory, MemoryInventory]:
             100.0,
             max(0.0, os.getloadavg()[0] / logical * 100),
         )
-    except AttributeError, OSError:
+    except (AttributeError, OSError):
         load_percent = None
     memory = _fallback_memory()
     if psutil is not None:
@@ -564,7 +564,7 @@ def _probe_cpu_and_memory() -> tuple[CpuInventory, MemoryInventory]:
             physical = min(physical, logical)
             measured_load = psutil.cpu_percent(interval=None)
             load_percent = float(measured_load) if measured_load is not None else None
-        except AttributeError, OSError, TypeError, ValueError:
+        except (AttributeError, OSError, TypeError, ValueError):
             physical = min(physical, logical)
             load_percent = None
         try:
@@ -576,7 +576,7 @@ def _probe_cpu_and_memory() -> tuple[CpuInventory, MemoryInventory]:
                 swap_total_bytes=int(swap.total),
                 swap_free_bytes=int(swap.free),
             )
-        except AttributeError, OSError, TypeError, ValueError:
+        except (AttributeError, OSError, TypeError, ValueError):
             memory = _fallback_memory()
     cpu = CpuInventory(
         physical_cores=physical,
@@ -593,7 +593,7 @@ def _probe_cpu_and_memory() -> tuple[CpuInventory, MemoryInventory]:
 def _probe_root_disk() -> tuple[DiskDevice, ...]:
     try:
         stat = os.statvfs(PathLikeRoot)
-    except AttributeError, OSError, ValueError:
+    except (AttributeError, OSError, ValueError):
         return ()
     total = stat.f_blocks * stat.f_frsize
     free = stat.f_bavail * stat.f_frsize

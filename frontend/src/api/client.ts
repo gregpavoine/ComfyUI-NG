@@ -95,7 +95,9 @@ export async function submitJob(
   seed?: number,
   steps?: number,
   width?: number,
-  height?: number
+  height?: number,
+  nodes?: any[],
+  connections?: any[]
 ): Promise<Job | null> {
   try {
     const res = await fetch('/api/v1/jobs/submit', {
@@ -109,6 +111,8 @@ export async function submitJob(
         steps: steps !== undefined ? Number(steps) : undefined,
         width: width !== undefined ? Number(width) : undefined,
         height: height !== undefined ? Number(height) : undefined,
+        nodes,
+        connections,
       }),
     });
     const data = await res.json();

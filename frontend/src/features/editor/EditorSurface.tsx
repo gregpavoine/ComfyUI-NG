@@ -87,22 +87,29 @@ export const EditorSurface: React.FC = () => {
       if (defs.length > 0) {
         const ckpt = defs.find((d) => d.name === 'LoadCheckpoint') || defs[0];
         const clip = defs.find((d) => d.name === 'CLIPTextEncode') || defs[1] || defs[0];
+        const latent = defs.find((d) => d.name === 'EmptyLatentImage') || defs[2] || defs[0];
         const sampler = defs.find((d) => d.name === 'KSampler') || defs[3] || defs[0];
+        const decode = defs.find((d) => d.name === 'VAEDecode') || defs[4] || defs[0];
         const saveImg = defs.find((d) => d.name === 'SaveImage') || defs[5] || defs[0];
 
         const initialNodes: CanvasNode[] = [
           { id: 'node-1', def: ckpt, x: 40, y: 80, params: { ckpt_name: 'flux1-dev.safetensors' } },
           { id: 'node-2', def: clip, x: 340, y: 80, params: { text: 'A high-tech cybernetic space station surrounded by glowing neon plasma rings in deep space, hyper-detailed, 8k' } },
-          { id: 'node-3', def: sampler, x: 680, y: 120, params: { steps: 25, cfg: 3.5, seed: 4242, sampler_name: 'euler' } },
-          { id: 'node-4', def: saveImg, x: 1000, y: 160, params: { filename_prefix: 'comfyng_flux_sample' } },
+          { id: 'node-3', def: latent, x: 340, y: 280, params: { width: 1024, height: 1024, batch_size: 1 } },
+          { id: 'node-4', def: sampler, x: 680, y: 120, params: { steps: 25, cfg: 3.5, seed: 4242, sampler_name: 'euler' } },
+          { id: 'node-5', def: decode, x: 1000, y: 120, params: {} },
+          { id: 'node-6', def: saveImg, x: 1280, y: 120, params: { filename_prefix: 'comfyng_flux_sample' } },
         ];
         setNodesOnCanvas(initialNodes);
 
         setConnections([
-          { id: 'c1', fromNodeId: 'node-1', fromPort: 'MODEL', toNodeId: 'node-3', toPort: 'MODEL', type: 'MODEL' },
+          { id: 'c1', fromNodeId: 'node-1', fromPort: 'MODEL', toNodeId: 'node-4', toPort: 'MODEL', type: 'MODEL' },
           { id: 'c2', fromNodeId: 'node-1', fromPort: 'CLIP', toNodeId: 'node-2', toPort: 'CLIP', type: 'CLIP' },
-          { id: 'c3', fromNodeId: 'node-2', fromPort: 'CONDITIONING', toNodeId: 'node-3', toPort: 'POSITIVE', type: 'CONDITIONING' },
-          { id: 'c4', fromNodeId: 'node-3', fromPort: 'LATENT', toNodeId: 'node-4', toPort: 'IMAGE', type: 'IMAGE' },
+          { id: 'c3', fromNodeId: 'node-2', fromPort: 'CONDITIONING', toNodeId: 'node-4', toPort: 'POSITIVE', type: 'CONDITIONING' },
+          { id: 'c4', fromNodeId: 'node-3', fromPort: 'LATENT', toNodeId: 'node-4', toPort: 'LATENT', type: 'LATENT' },
+          { id: 'c5', fromNodeId: 'node-4', fromPort: 'LATENT', toNodeId: 'node-5', toPort: 'LATENT', type: 'LATENT' },
+          { id: 'c6', fromNodeId: 'node-1', fromPort: 'VAE', toNodeId: 'node-5', toPort: 'VAE', type: 'VAE' },
+          { id: 'c7', fromNodeId: 'node-5', fromPort: 'IMAGE', toNodeId: 'node-6', toPort: 'IMAGE', type: 'IMAGE' },
         ]);
         setSelectedNodeId('node-2');
       }
@@ -244,7 +251,9 @@ export const EditorSurface: React.FC = () => {
       seedVal,
       stepsVal,
       widthVal,
-      heightVal
+      heightVal,
+      nodesOnCanvas,
+      connections
     );
 
     if (!job) {

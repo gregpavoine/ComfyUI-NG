@@ -7,7 +7,10 @@ from pathlib import Path
 import sys
 import time
 from typing import Any
+import logging
 import uuid
+
+logger = logging.getLogger("comfyng.api.app")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -39,6 +42,8 @@ class JobSubmissionDTO(BaseModel):
     steps: int | None = 25
     width: int | None = 1024
     height: int | None = 1024
+    nodes: list[dict[str, Any]] | None = None
+    connections: list[dict[str, Any]] | None = None
 
 
 _AVAILABLE_MODELS = [
@@ -89,6 +94,87 @@ _AVAILABLE_MODELS = [
     },
 ]
 
+def _scan_files_in_dirs(base_dirs: list[Path], extensions: tuple[str, ...]) -> list[str]:
+    files = []
+    seen = set()
+    for sdir in base_dirs:
+        if not sdir.is_dir():
+            continue
+        try:
+            for path in sdir.rglob("*"):
+                if path.is_file() and path.suffix in extensions:
+                    try:
+                        rel_path = path.relative_to(sdir)
+                    except ValueError:
+                        rel_path = path.name
+                    path_str = str(rel_path)
+                    if path_str not in seen:
+                        seen.add(path_str)
+                        files.append(path_str)
+        except Exception:
+            pass
+    files.sort()
+    return files
+
+
+def _get_real_models() -> list[dict[str, Any]]:
+    import hashlib
+    # Scan both lowercase and uppercase directories
+    search_dirs = [
+        Path("/home/gp/ComfyUI/models/checkpoints"),
+        Path("/home/gp/ComfyUI/Models/checkpoints"),
+        Path("/home/gp/ComfyUI/models/diffusion_models"),
+        Path("/home/gp/ComfyUI/Models/diffusion_models")
+    ]
+    models = []
+    seen_paths = set()
+    for sdir in search_dirs:
+        if not sdir.is_dir():
+            continue
+        try:
+            for path in sdir.rglob("*"):
+                if path.is_file() and path.suffix in (".safetensors", ".ckpt"):
+                    try:
+                        rel_path = path.relative_to(sdir)
+                    except ValueError:
+                        rel_path = path.name
+                    path_str = str(rel_path)
+                    if path_str in seen_paths:
+                        continue
+                    seen_paths.add(path_str)
+                    size_gb = round(path.stat().st_size / (1024**3), 1)
+                    
+                    parts = list(rel_path.parts)
+                    if len(parts) >= 2:
+                        category = parts[0]
+                        name = parts[-1]
+                        display_name = f"{name} ({category})"
+                    else:
+                        display_name = rel_path.name
+                    
+                    models.append({
+                        "name": path_str,
+                        "display_name": display_name,
+                        "architecture": "FLUX" if "flux" in path_str.lower() else "SDXL" if "sdxl" in path_str.lower() else "Unknown",
+                        "size_gb": size_gb,
+                        "format": path.suffix[1:],
+                        "digest": f"sha256:{hashlib.sha256(path_str.encode()).hexdigest()[:16]}",
+                        "status": "ready",
+                    })
+        except Exception:
+            pass
+            
+    models.sort(key=lambda m: m["display_name"])
+    
+    # Merge with default available models to make sure standard options are always present
+    seen_names = {m["name"] for m in models}
+    for m in _AVAILABLE_MODELS:
+        if m["name"] not in seen_names:
+            models.append(m)
+            seen_names.add(m["name"])
+            
+    return models
+
 _IN_MEMORY_WORKFLOWS: list[dict[str, Any]] = [
     {
         "id": "wf-flux-t2i",
@@ -134,7 +220,7 @@ def _format_job(record: JobRecord) -> dict[str, Any]:
         "name": record.payload.get("name") or "Generation Job",
         "status": record.status.value,
         "priority": record.user_priority,
-        "created_at": datetime.fromtimestamp(record.created_at, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": datetime.fromtimestamp(time.time() - time.monotonic() + record.created_at, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "duration_ms": duration_ms,
         "artefacts": artefacts,
         "image_url": image_url,
@@ -145,6 +231,7 @@ def _format_job(record: JobRecord) -> dict[str, Any]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Lifespan starting...")
     # Retrieve configuration settings
     settings: Settings | None = getattr(app.state, "settings", None)
     artifacts_dir = _get_artifacts_dir_from_settings(settings)
@@ -177,6 +264,7 @@ async def lifespan(app: FastAPI):
     scheduler_task = asyncio.create_task(scheduler.run())
     app.state.scheduler_task = scheduler_task
 
+    logger.info("Lifespan yield reached!")
     yield
 
     # Stop scheduler and wait for completion
@@ -213,7 +301,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "version": "0.1.0",
             "status": "running",
             "docs": "/docs",
-            "ui": "http://127.0.0.1:8188/",
+            "ui": "/",
         }
 
     @app.get("/health")
@@ -236,7 +324,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/nodes/catalogue")
     async def get_node_catalogue() -> dict[str, Any]:
-        model_options = [m["name"] for m in _AVAILABLE_MODELS]
+        checkpoints = _scan_files_in_dirs([
+            Path("/home/gp/ComfyUI/models/checkpoints"),
+            Path("/home/gp/ComfyUI/Models/checkpoints"),
+            Path("/home/gp/ComfyUI/models/diffusion_models"),
+            Path("/home/gp/ComfyUI/Models/diffusion_models")
+        ], (".safetensors", ".ckpt"))
+        
+            
+        vaes = _scan_files_in_dirs([
+            Path("/home/gp/ComfyUI/models/vae"),
+            Path("/home/gp/ComfyUI/Models/vae")
+        ], (".safetensors", ".ckpt", ".pt"))
+        
+        loras = _scan_files_in_dirs([
+            Path("/home/gp/ComfyUI/models/loras"),
+            Path("/home/gp/ComfyUI/Models/loras")
+        ], (".safetensors", ".ckpt"))
+
         try:
             catalogue = NodeCatalogue.discover()
             nodes_data = []
@@ -259,7 +364,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                 "name": p.name,
                                 "type": p.type,
                                 "default": p.default,
-                                "options": model_options if "ckpt" in p.name.lower() or "model" in p.name.lower() else None,
+                                "options": (
+                                    checkpoints if "ckpt" in p.name.lower() or "model" in p.name.lower()
+                                    else loras if "lora" in node.name.lower() or "lora" in p.name.lower()
+                                    else vaes if "vae" in node.name.lower() or "vae" in p.name.lower()
+                                    else None
+                                ),
                                 "description": p.description,
                             }
                             for p in node.parameters
@@ -284,7 +394,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                 "name": "ckpt_name",
                                 "type": "STRING",
                                 "default": "flux1-dev.safetensors",
-                                "options": model_options,
+                                "options": checkpoints,
                             }
                         ],
                     },
@@ -395,6 +505,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "width": job_req.width,
                 "height": job_req.height,
                 "model_name": job_req.model_name,
+                "nodes": job_req.nodes,
+                "connections": job_req.connections,
             },
             workflow_id=job_req.workflow_id or "workflow-1",
             workflow_version_id=1,
@@ -423,7 +535,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/models")
     async def list_models() -> dict[str, Any]:
-        return {"status": "ok", "models": _AVAILABLE_MODELS}
+        return {"status": "ok", "models": _get_real_models()}
 
     @app.get("/api/v1/plugins")
     async def list_plugins() -> dict[str, Any]:

@@ -104,7 +104,7 @@ class PluginMultiplexerRuntime:
                 continue
             try:
                 module_path = Path(source).resolve()
-            except OSError, RuntimeError:
+            except (OSError, RuntimeError):
                 continue
             if module_path.is_relative_to(loaded.package_root):
                 sys.modules.pop(module_name, None)

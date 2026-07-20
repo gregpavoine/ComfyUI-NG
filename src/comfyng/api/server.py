@@ -12,10 +12,37 @@ logger = logging.getLogger("comfyng.api.server")
 
 
 async def _serve_async(app: FastAPI, host: str, port: int) -> None:
+    # Handle ASGI lifespan startup protocol
+    startup_complete = asyncio.Event()
+    shutdown_complete = asyncio.Event()
+    shutdown_requested = asyncio.Event()
+    
+    async def receive() -> dict[str, Any]:
+        if not startup_complete.is_set():
+            return {"type": "lifespan.startup"}
+        await shutdown_requested.wait()
+        return {"type": "lifespan.shutdown"}
+        
+    async def send(message: dict[str, Any]) -> None:
+        if message["type"] == "lifespan.startup.complete":
+            startup_complete.set()
+        elif message["type"] == "lifespan.shutdown.complete":
+            shutdown_complete.set()
+
+    lifespan_task = asyncio.create_task(app({"type": "lifespan", "asgi": {"version": "3.0"}}, receive, send))
+    await startup_complete.wait()
+
     bridge = ASGIHTTPBridge(app, host, port)
     server = await asyncio.start_server(bridge.handle_client, host, port)
-    async with server:
-        await server.serve_forever()
+    
+    try:
+        async with server:
+            await server.serve_forever()
+    finally:
+        # Trigger ASGI lifespan shutdown protocol
+        shutdown_requested.set()
+        await shutdown_complete.wait()
+        lifespan_task.cancel()
 
 
 class ASGIHTTPBridge:

@@ -412,6 +412,9 @@ class Scheduler:
                     error={"reason": reason},
                 )
         except Exception as exc:
+            import traceback
+            print(f"Job {job_id} execution failed: {exc}")
+            traceback.print_exc()
             record = await self.repository.get(job_id)
             if record is None or record.status.terminal:
                 return

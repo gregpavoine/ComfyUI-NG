@@ -637,7 +637,7 @@ def _parse_manifest(
                     description=node_raw.get("description"),
                 )
             )
-        except ManifestValidationError, PathContainmentError:
+        except (ManifestValidationError, PathContainmentError):
             raise
         except ValueError as exc:
             raise ManifestValidationError(f"invalid nodes[{index}]: {exc}") from exc
