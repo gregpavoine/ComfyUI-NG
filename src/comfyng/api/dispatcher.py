@@ -86,6 +86,8 @@ class WorkflowDispatcher:
             "guidance": float(payload.get("guidance") or 3.5),
             "num_images": int(payload.get("num_images") or 1),
             "loras": list(payload.get("loras") or []),
+            "model_family": payload.get("model_family", "auto"),
+            "component_source": payload.get("component_source") or payload.get("components_path"),
         }
         nodes = payload.get("nodes")
         if not isinstance(nodes, (list, tuple)):
@@ -96,7 +98,7 @@ class WorkflowDispatcher:
                 continue
             name = cls._node_name(raw_node).lower()
             params = cls._params(raw_node)
-            if name in {"loadcheckpoint", "checkpointloadersimple", "ng.model.flux.load", "ng.model.load"}:
+            if name in {"loadcheckpoint", "checkpointloadersimple", "ng.model.load", "ng.model.load"}:
                 request["model"] = (
                     params.get("model_path")
                     or params.get("ckpt_name")
@@ -110,7 +112,7 @@ class WorkflowDispatcher:
             elif name in {"emptylatentimage", "ng.empty_latent", "ng.latent.empty"}:
                 request["width"] = int(params.get("width") or request["width"])
                 request["height"] = int(params.get("height") or request["height"])
-            elif name in {"ksampler", "ng.sample.flux", "ng.sampler"}:
+            elif name in {"ksampler", "ng.sample.run", "ng.sampler"}:
                 request["seed"] = int(params.get("seed") or request["seed"])
                 request["steps"] = int(params.get("steps") or request["steps"])
                 request["guidance"] = float(
@@ -214,13 +216,15 @@ class WorkflowDispatcher:
             async with self._runtime_lock:
                 token.checkpoint(CancellationCheckpoint.BETWEEN_BLOCKS)
                 load_result = await self._execute_runtime(
-                    "ng.model.flux.load",
+                    "ng.model.load",
                     {
                         "model_path": model_source,
                         "local_files_only": True,
                         "device": "auto",
                         "cpu_offload": True,
-                        "compile": False,
+                        "compile_mode": "off",
+                        "model_family": request.get("model_family", "auto"),
+                        "component_source": request.get("component_source"),
                     },
                     cancellation,
                 )
@@ -243,7 +247,7 @@ class WorkflowDispatcher:
 
                 token.checkpoint(CancellationCheckpoint.SAMPLER_STEP, position=0)
                 generated = await self._execute_runtime(
-                    "ng.sample.flux",
+                    "ng.sample.run",
                     {
                         "prompt": request["prompt"],
                         "negative_prompt": request["negative_prompt"],
