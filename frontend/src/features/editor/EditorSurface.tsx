@@ -206,32 +206,32 @@ export const EditorSurface: React.FC = () => {
       addLog('info', `Loaded ${defs.length} node definitions, ${models.length} models`);
 
       if (defs.length > 0) {
-        const ckpt = defs.find((d) => d.name === 'LoadCheckpoint') || defs[0];
-        const clip = defs.find((d) => d.name === 'CLIPTextEncode') || defs[1] || defs[0];
-        const latent = defs.find((d) => d.name === 'EmptyLatentImage') || defs[2] || defs[0];
-        const sampler = defs.find((d) => d.name === 'KSampler') || defs[3] || defs[0];
-        const decode = defs.find((d) => d.name === 'VAEDecode') || defs[4] || defs[0];
-        const saveImg = defs.find((d) => d.name === 'SaveImage') || defs[5] || defs[0];
+        const modelLoader = defs.find((d) => d.name === 'ng.model.load') || defs[0];
+        const textEncoder = defs.find((d) => d.name === 'ng.text_encoder.load') || defs[1] || defs[0];
+        const promptEncode = defs.find((d) => d.name === 'ng.conditioning.prompt_encode') || defs[2] || defs[0];
+        const sampler = defs.find((d) => d.name === 'ng.sample.run') || defs[3] || defs[0];
+        const vaeDecode = defs.find((d) => d.name === 'ng.latent.latent_to_image') || defs[4] || defs[0];
+        const saveImg = defs.find((d) => d.name === 'ng.image.save') || defs[5] || defs[0];
+        const emptyLatent = defs.find((d) => d.name === 'ng.latent.empty') || defs[6] || defs[0];
 
         const initialNodes: CanvasNode[] = [
-          { id: 'node-1', def: ckpt, x: 40, y: 80, params: { ckpt_name: models[0]?.name || '' } },
-          { id: 'node-2', def: clip, x: 340, y: 80, params: { text: 'A cybernetic space station in deep space, neon glows, hyper-detailed, 8k' } },
-          { id: 'node-3', def: latent, x: 340, y: 280, params: { width: 1024, height: 1024, batch_size: 1 } },
-          { id: 'node-4', def: sampler, x: 680, y: 120, params: { steps: 28, cfg: 3.5, seed: 4242, sampler_name: 'euler' } },
-          { id: 'node-5', def: decode, x: 1000, y: 120, params: {} },
-          { id: 'node-6', def: saveImg, x: 1280, y: 120, params: { filename_prefix: 'comfyng_flux_sample' } },
+          { id: 'node-1', def: modelLoader, x: 40, y: 80, params: { path: models[0]?.name || '' } },
+          { id: 'node-2', def: promptEncode, x: 340, y: 80, params: { prompt: 'A cybernetic space station in deep space, neon glows, hyper-detailed, 8k', negative_prompt: '' } },
+          { id: 'node-3', def: emptyLatent, x: 340, y: 280, params: { width: 1024, height: 1024, batch_size: 1 } },
+          { id: 'node-4', def: sampler, x: 680, y: 120, params: { steps: 28, guidance: 3.5, seed: 4242, sampler: 'euler' } },
+          { id: 'node-5', def: vaeDecode, x: 1000, y: 120, params: {} },
+          { id: 'node-6', def: saveImg, x: 1280, y: 120, params: { path: 'comfyng_flux_sample', format: 'png' } },
         ];
         setNodesOnCanvas(initialNodes);
         addLog('info', 'Default FLUX workflow loaded with 6 nodes');
 
         setConnections([
-          { id: 'c1', fromNodeId: 'node-1', fromPort: 'MODEL', toNodeId: 'node-4', toPort: 'MODEL', type: 'MODEL' },
-          { id: 'c2', fromNodeId: 'node-1', fromPort: 'CLIP', toNodeId: 'node-2', toPort: 'CLIP', type: 'CLIP' },
-          { id: 'c3', fromNodeId: 'node-2', fromPort: 'CONDITIONING', toNodeId: 'node-4', toPort: 'POSITIVE', type: 'CONDITIONING' },
-          { id: 'c4', fromNodeId: 'node-3', fromPort: 'LATENT', toNodeId: 'node-4', toPort: 'LATENT', type: 'LATENT' },
-          { id: 'c5', fromNodeId: 'node-4', fromPort: 'LATENT', toNodeId: 'node-5', toPort: 'LATENT', type: 'LATENT' },
-          { id: 'c6', fromNodeId: 'node-1', fromPort: 'VAE', toNodeId: 'node-5', toPort: 'VAE', type: 'VAE' },
-          { id: 'c7', fromNodeId: 'node-5', fromPort: 'IMAGE', toNodeId: 'node-6', toPort: 'IMAGE', type: 'IMAGE' },
+          { id: 'c1', fromNodeId: 'node-1', fromPort: 'model', toNodeId: 'node-4', toPort: 'model', type: 'NG_MODEL@1' },
+          { id: 'c2', fromNodeId: 'node-1', fromPort: 'text_encoder', toNodeId: 'node-2', toPort: 'text_encoder', type: 'NG_TEXT_ENCODER@1' },
+          { id: 'c3', fromNodeId: 'node-2', fromPort: 'conditioning', toNodeId: 'node-4', toPort: 'conditioning', type: 'NG_CONDITIONING@1' },
+          { id: 'c4', fromNodeId: 'node-3', fromPort: 'latent', toNodeId: 'node-4', toPort: 'latent', type: 'NG_LATENT@1' },
+          { id: 'c5', fromNodeId: 'node-4', fromPort: 'latent', toNodeId: 'node-5', toPort: 'latent', type: 'NG_LATENT@1' },
+          { id: 'c6', fromNodeId: 'node-5', fromPort: 'image', toNodeId: 'node-6', toPort: 'image', type: 'NG_IMAGE@1' },
         ]);
       }
     }).catch(err => {
@@ -318,10 +318,17 @@ export const EditorSurface: React.FC = () => {
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.2, Math.min(5, canvasScale * delta));
-    setCanvasScale(newScale);
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = Math.max(0.2, Math.min(5, canvasScale * delta));
+      setCanvasScale(newScale);
+    } else {
+      setCanvasPanOffset(p => ({
+        x: p.x - e.deltaX,
+        y: p.y - e.deltaY,
+      }));
+    }
   };
 
   const handleNodeMouseDown = (node: CanvasNode, e: React.MouseEvent) => {
@@ -699,7 +706,7 @@ export const EditorSurface: React.FC = () => {
         <div style={{
           transform: `translate(${canvasPanOffset.x}px, ${canvasPanOffset.y}px) scale(${canvasScale})`,
           transformOrigin: '0 0',
-          width: '100%', height: '100%', position: 'relative',
+          width: '10000px', height: '10000px', position: 'relative',
         }}>
           <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: '0.75rem', zIndex: 10 }}>
             {!leftPanelOpen && (
